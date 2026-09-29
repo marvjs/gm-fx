@@ -1,0 +1,10 @@
+[app]
+name = "Grandmaster FX"
+environment = "development"
+log_level = "INFO"
+log_directory = "logs"
+data_directory = "data"
+
+[execution]
+mode = "observe"
+allow_live_account = false

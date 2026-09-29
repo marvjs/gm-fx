@@ -1,0 +1,20 @@
+[validation]
+in_sample_fraction = 0.70
+minimum_trades = 30
+minimum_profit_factor = 1.10
+minimum_expectancy = 0.0
+maximum_drawdown_percent = 15.0
+minimum_out_of_sample_return_percent = 0.0
+
+[sensitivity]
+spread_multipliers = [0.75, 1.00, 1.25, 1.50]
+slippage_points = [0.0, 2.0, 4.0, 6.0]
+commission_per_lot = [0.0, 7.0, 10.0, 14.0]
+
+[walk_forward]
+folds = 4
+minimum_train_bars = 500
+minimum_test_bars = 200
+
+[exports]
+directory = "data/reports"

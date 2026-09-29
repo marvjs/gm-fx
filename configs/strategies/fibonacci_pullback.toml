@@ -1,0 +1,22 @@
+[strategy]
+name = "fibonacci_pullback"
+enabled = true
+impulse_period = 24
+atr_period = 14
+trend_period = 50
+minimum_bars = 80
+
+[filters]
+max_spread_points = 15
+retracement_min = 0.382
+retracement_max = 0.618
+minimum_impulse_atr = 2.0
+minimum_atr_points = 3.0
+maximum_atr_points = 120.0
+session_start_utc = 6
+session_end_utc = 20
+
+[protection]
+stop_atr_multiple = 1.25
+target_atr_multiple = 2.00
+minimum_reward_risk = 1.30

@@ -1,0 +1,22 @@
+[strategy]
+name = "momentum_continuation"
+enabled = true
+fast_period = 12
+slow_period = 36
+atr_period = 14
+roc_period = 8
+minimum_bars = 60
+
+[filters]
+max_spread_points = 15
+minimum_roc_percent = 0.08
+maximum_candle_atr = 1.50
+minimum_atr_points = 3.0
+maximum_atr_points = 120.0
+session_start_utc = 6
+session_end_utc = 20
+
+[protection]
+stop_atr_multiple = 1.50
+target_atr_multiple = 2.25
+minimum_reward_risk = 1.25

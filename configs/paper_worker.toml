@@ -1,0 +1,23 @@
+[worker]
+timeframe = "M5"
+history_bars = 120
+poll_interval_seconds = 1.0
+maximum_positions = 3
+minimum_score = 0.60
+cooldown_seconds = 60
+
+[paper]
+initial_balance = 1000.0
+cash_per_point = 0.01
+small_profit_cash = 1.00
+trailing_activation_cash = 0.75
+trailing_retracement_cash = 0.25
+stop_loss_cash = 2.00
+
+[signal]
+fast_period = 12
+slow_period = 36
+momentum_period = 8
+minimum_momentum_percent = 0.03
+stop_atr_multiple = 1.5
+target_atr_multiple = 2.0

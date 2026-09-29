@@ -1,0 +1,9 @@
+[symbols]
+allowed_currencies = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"]
+preferred = ["EURUSD", "GBPUSD", "USDJPY"]
+include_hidden = true
+
+[validation]
+require_trade_enabled = true
+require_positive_tick_size = true
+require_positive_volume_step = true

@@ -1,0 +1,26 @@
+[strategy]
+name = "scalp_baseline"
+enabled = true
+fast_ema_period = 12
+slow_ema_period = 26
+rsi_period = 14
+atr_period = 14
+roc_period = 10
+minimum_bars = 60
+
+[filters]
+max_spread_points = 15
+minimum_atr_points = 3.0
+maximum_atr_points = 80.0
+minimum_roc_percent = 0.005
+buy_rsi_min = 52.0
+buy_rsi_max = 70.0
+sell_rsi_min = 30.0
+sell_rsi_max = 48.0
+session_start_utc = 6
+session_end_utc = 20
+
+[protection]
+stop_atr_multiple = 1.25
+target_atr_multiple = 1.75
+minimum_reward_risk = 1.20

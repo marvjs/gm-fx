@@ -1,0 +1,22 @@
+[strategy]
+name = "volatility_expansion"
+enabled = true
+range_period = 12
+atr_period = 14
+compression_period = 30
+trend_period = 50
+minimum_bars = 80
+
+[filters]
+max_spread_points = 15
+compression_ratio_max = 0.80
+expansion_ratio_min = 1.20
+minimum_atr_points = 3.0
+maximum_atr_points = 120.0
+session_start_utc = 6
+session_end_utc = 20
+
+[protection]
+stop_atr_multiple = 1.50
+target_atr_multiple = 2.50
+minimum_reward_risk = 1.40

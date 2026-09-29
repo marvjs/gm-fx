@@ -1,0 +1,22 @@
+[strategy]
+name = "channel_mean_reversion"
+enabled = true
+channel_period = 30
+atr_period = 14
+rsi_period = 14
+minimum_bars = 60
+
+[filters]
+max_spread_points = 15
+channel_buffer_atr = 0.15
+buy_rsi_max = 32.0
+sell_rsi_min = 68.0
+minimum_atr_points = 3.0
+maximum_atr_points = 100.0
+session_start_utc = 6
+session_end_utc = 20
+
+[protection]
+stop_atr_multiple = 1.25
+target_atr_multiple = 1.75
+minimum_reward_risk = 1.20

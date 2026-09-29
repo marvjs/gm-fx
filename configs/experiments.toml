@@ -1,0 +1,69 @@
+[experiments]
+default_timeframe = "M5"
+default_count = 10000
+minimum_trades = 30
+minimum_profit_factor = 1.10
+minimum_expectancy = 0.0
+maximum_drawdown_percent = 15.0
+minimum_profitable_fold_percent = 75.0
+minimum_signal_frequency_percent = 0.10
+
+[eligibility]
+require_holdout_pass = true
+require_walk_forward_stability = true
+require_all_cost_scenarios_nonnegative = true
+execution_enabled = false
+
+[[strategies]]
+id = "baseline_scalper"
+kind = "baseline"
+enabled = true
+config = "configs/strategies/scalp_baseline.toml"
+
+[[strategies]]
+id = "donchian_breakout"
+kind = "donchian_breakout"
+enabled = true
+config = "configs/strategies/donchian_breakout.toml"
+
+[[strategies]]
+id = "volatility_expansion"
+kind = "volatility_expansion"
+enabled = true
+config = "configs/strategies/volatility_expansion.toml"
+
+[[strategies]]
+id = "extreme_mean_reversion"
+kind = "extreme_mean_reversion"
+enabled = true
+config = "configs/strategies/extreme_mean_reversion.toml"
+
+[[strategies]]
+id = "volatility_expansion_window"
+kind = "volatility_expansion_window"
+enabled = true
+config = "configs/strategies/volatility_expansion_window.toml"
+
+[[strategies]]
+id = "session_range_breakout"
+kind = "session_range_breakout"
+enabled = true
+config = "configs/strategies/session_range_breakout.toml"
+
+[[strategies]]
+id = "fibonacci_pullback"
+kind = "fibonacci_pullback"
+enabled = true
+config = "configs/strategies/fibonacci_pullback.toml"
+
+[[strategies]]
+id = "channel_mean_reversion"
+kind = "channel_mean_reversion"
+enabled = true
+config = "configs/strategies/channel_mean_reversion.toml"
+
+[[strategies]]
+id = "momentum_continuation"
+kind = "momentum_continuation"
+enabled = true
+config = "configs/strategies/momentum_continuation.toml"

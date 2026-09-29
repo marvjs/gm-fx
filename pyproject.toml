@@ -1,0 +1,111 @@
+[project]
+name = "grandmaster-fx"
+version = "1.7.0"
+description = "A safe, testable foundation for a deterministic MetaTrader 5 forex trading system."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Grandmaster FX Contributors" }]
+dependencies = [
+    "pydantic>=2.12.5,<3",
+    "pydantic-settings>=2.12.0,<3",
+    "rich>=14.3.3,<15",
+    "typer>=0.24.1,<0.25",
+    "MetaTrader5==5.0.6231; sys_platform == 'win32'",
+    "numpy>=2.3.3,<3",
+]
+
+[project.scripts]
+grandmaster-fx = "grandmaster_fx.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.151.9,<7",
+    "mypy>=1.19.1,<2",
+    "pytest>=9.0.2,<10",
+    "pytest-cov>=7.0.0,<8",
+    "pytest-mock>=3.15.1,<4",
+    "ruff>=0.15.7,<0.16",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+testpaths = ["tests"]
+markers = [
+    "integration: requires external software or services",
+    "demo_execution: can interact with a demo trading account and is always opt-in",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["grandmaster_fx"]
+omit = [
+    "src/grandmaster_fx/__main__.py",
+    "src/grandmaster_fx/cli.py",
+    "src/grandmaster_fx/*_console.py",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "A", "ANN", "ARG", "ASYNC", "B", "BLE", "C4", "C90", "DTZ", "E", "EM",
+    "ERA", "EXE", "F", "FA", "FBT", "FLY", "FURB", "G", "I", "ICN", "INP",
+    "ISC", "LOG", "N", "PERF", "PIE", "PL", "PT", "PTH", "PYI", "Q", "RET",
+    "RSE", "RUF", "S", "SIM", "SLF", "SLOT", "T10", "T20", "TC", "TRY", "UP", "W",
+]
+ignore = [
+    "ANN401",
+    "COM812",
+    "ISC001",
+    "S101",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ARG001", "FBT003", "PLC0415", "PLR2004", "PT012", "S106", "SLF001"]
+"src/grandmaster_fx/infrastructure/mt5_gateway.py" = ["FBT003", "PLC0415", "TC001", "TC003", "TRY003", "EM102"]
+"src/grandmaster_fx/config/symbols.py" = ["PLR2004", "TRY003", "EM101", "EM102"]
+"src/grandmaster_fx/domain/symbols.py" = ["TRY003", "EM102"]
+"src/grandmaster_fx/domain/market_data.py" = ["ARG001", "E701", "E702", "PLR2004", "TRY003", "EM101", "EM102"]
+"src/grandmaster_fx/market_data/service.py" = ["E701", "E702", "PLR0913", "TRY003", "EM101"]
+"src/grandmaster_fx/cli.py" = ["E501", "FBT001", "PLC0415", "TRY003", "EM101", "EM102"]
+"src/grandmaster_fx/execution/worker.py" = ["PLR0913", "PLR0917"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["grandmaster_fx"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 6
+max-branches = 10
+max-returns = 6
+max-statements = 40
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["grandmaster_fx"]
+mypy_path = "src"
+warn_unreachable = true
+pretty = true

@@ -1,0 +1,55 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test and quality caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Runtime data
+data/
+reports/
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Grandmaster FX runtime state
+STOP
+*.tmp
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Recovery and source handoff files
+grandmaster-fx-readable-source-handoff.md
+grandmaster-fx-complete-source-handoff.txt
+recover_grandmaster_fx_from_handoff.py
+create_readable_source_handoff.py
+create_complete_source_handoff.py

@@ -1,0 +1,13 @@
+[backtest]
+initial_balance = 10000.0
+risk_per_trade_percent = 0.25
+commission_per_lot_round_turn = 7.0
+slippage_points = 2.0
+maximum_holding_bars = 20
+minimum_history_bars = 60
+conservative_same_bar_exit = true
+
+[quality]
+maximum_gap_multiple = 3
+reject_history_gaps = false
+maximum_data_age_hours = 24
