@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.8.2 - 2026-09-30
+
+### Added
+
+- Added read-only prediction configuration and inspection CLI commands.
+- Added live MT5 regime detection, regime-mapped strategy evaluation, and M15 confirmation reporting.
+
+
+## 1.8.1 - 2026-09-30
+
+### Fixed
+
+- Completed strict Ruff and mypy compliance for prediction components.
+- Corrected existing execution and paper-worker lint findings exposed by the full quality gate.
+
+
+## 1.9.0 - 2026-10-06
+
+### Added
+- Unlocked real-money live trading capabilities (`allow_live_account = true`).
+- New `live` Typer CLI group for real-account execution (`status`, `cycle`, `run`, `stop`).
+- Renamed execution components to universal `ExecutionManager` and `ExecutionWorker`.
+- Fixed MT5 error masking to accurately report broker trade rejections and retcodes instead of `MT5 error 1: Success`.
+
+## 1.8.0 - 2026-10-06
+
+### Added
+- Independent `RiskManager` engine to dynamically calculate symbol-normalized lot sizes based on percentage risk constraints.
+- Global circuit breakers enforcing maximum daily loss and maximum floating loss boundaries.
+- Accelerated default cash-profit targets in `demo_execution.toml`.
+
+## 1.8.0 - 2026-10-06
+
+### Added
+- Independent `RiskManager` engine to dynamically calculate symbol-normalized lot sizes based on percentage risk constraints.
+- Global circuit breakers enforcing maximum daily loss and maximum floating loss boundaries.
+- Accelerated default cash-profit targets in `demo_execution.toml`.
+
+## 1.7.0 - 2026-10-06
+
+### Added
+- Demo multi-symbol execution worker to continuously poll and trade via the `DemoExecutionManager`.
+- Real-time `demo run`, `demo cycle`, `demo status`, and `demo stop` Typer CLI commands.
+- Centralized `StrategyRegistry` injection for safe execution reuse alongside `experiments`.
+
+## 1.6.4 - 2026-09-29
+
+### Fixed
+- Added focused coverage for execution validation, journal persistence, configuration failures, paper accounting, missing state, and bounded worker runs.
+- Restored the enforced 90 percent coverage threshold without exclusions.
+
 ## 1.7.0 - 2026-10-06
 
 ### Added

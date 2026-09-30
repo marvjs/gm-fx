@@ -115,7 +115,7 @@ class Mt5Gateway:
         return TerminalSnapshot.from_mapping(value._asdict())
 
     def account(self) -> AccountSnapshot:
-        """Return a validated demo-account snapshot."""
+        """Return a validated account snapshot."""
         value = self._load_module().account_info()
         if value is None:
             message = f"Could not retrieve account information. {self._last_error()}"
@@ -166,8 +166,7 @@ class Mt5Gateway:
         return [Bar.from_mapping(_structured_row_mapping(value)) for value in values]
 
     def positions(self, magic: int) -> list[PositionSnapshot]:
-        """Return positions owned by this demo engine."""
-        self.account().require_demo()
+        """Return positions owned by this engine."""
         values = self._load_module().positions_get()
         if values is None:
             raise Mt5DataError(f"Could not retrieve positions. {self._last_error()}")
@@ -177,7 +176,7 @@ class Mt5Gateway:
             if int(value.magic) == magic
         ]
 
-    def open_demo_order(
+    def open_order(
         self,
         candidate: ExecutionCandidate,
         volume: float,
@@ -186,8 +185,7 @@ class Mt5Gateway:
         deviation: int,
         dry_run: bool,  # noqa: FBT001
     ) -> int | None:
-        """Check and optionally submit one demo-only market order."""
-        self.account().require_demo()
+        """Check and optionally submit one market order with precise error extraction."""
         module = self._load_module()
         tick = self.tick(candidate.symbol)
         is_buy = candidate.signal is Signal.BUY
@@ -207,15 +205,19 @@ class Mt5Gateway:
         }
         checked = module.order_check(request)
         if checked is None or int(checked.retcode) != 0:
-            raise Mt5DataError(f"Demo order check failed. {self._last_error()}")
+            raise Mt5DataError(f"Order check failed. {self._last_error()}")
         if dry_run:
             return None
         result = module.order_send(request)
-        if result is None or int(result.retcode) != int(module.TRADE_RETCODE_DONE):
-            raise Mt5DataError(f"Demo order send failed. {self._last_error()}")
+        if result is None:
+            raise Mt5DataError(f"Order send crashed internally. {self._last_error()}")
+        if int(result.retcode) != int(module.TRADE_RETCODE_DONE):
+            raise Mt5DataError(
+                f"Order rejected by broker. Code: {result.retcode}, Reason: {result.comment}"
+            )
         return int(result.order or result.deal)
 
-    def close_demo_position(
+    def close_position(
         self,
         position: PositionSnapshot,
         magic: int,
@@ -223,8 +225,7 @@ class Mt5Gateway:
         deviation: int,
         dry_run: bool,  # noqa: FBT001
     ) -> bool:
-        """Close one engine-owned position on a demo account."""
-        self.account().require_demo()
+        """Close one engine-owned position with precise error extraction."""
         if position.magic != magic:
             message = "Refusing to close a position owned by another engine"
             raise Mt5DataError(message)
@@ -246,10 +247,14 @@ class Mt5Gateway:
         }
         checked = module.order_check(request)
         if checked is None or int(checked.retcode) != 0:
-            raise Mt5DataError(f"Demo close check failed. {self._last_error()}")
+            raise Mt5DataError(f"Close check failed. {self._last_error()}")
         if dry_run:
             return True
         result = module.order_send(request)
-        if result is None or int(result.retcode) != int(module.TRADE_RETCODE_DONE):
-            raise Mt5DataError(f"Demo close failed. {self._last_error()}")
+        if result is None:
+            raise Mt5DataError(f"Close send crashed internally. {self._last_error()}")
+        if int(result.retcode) != int(module.TRADE_RETCODE_DONE):
+            raise Mt5DataError(
+                f"Close rejected by broker. Code: {result.retcode}, Reason: {result.comment}"
+            )
         return True

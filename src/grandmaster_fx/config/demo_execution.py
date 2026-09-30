@@ -18,7 +18,6 @@ class ExecutionSection(BaseModel):
     comment: str = Field(min_length=1, max_length=31)
     deviation_points: int = Field(ge=0)
     poll_interval_seconds: float = Field(gt=0)
-    maximum_open_positions: int = Field(gt=0)
     cooldown_seconds: int = Field(ge=0)
 
 
@@ -29,19 +28,10 @@ class ProfitSection(BaseModel):
     trailing_retracement_cash: float = Field(gt=0)
 
 
-class RiskSection(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    fixed_volume: float = Field(gt=0)
-    maximum_spread_points: int = Field(gt=0)
-    maximum_daily_loss_cash: float = Field(gt=0)
-    maximum_floating_loss_cash: float = Field(gt=0)
-
-
 class DemoExecutionSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     execution: ExecutionSection
     profit: ProfitSection
-    risk: RiskSection
 
     @model_validator(mode="after")
     def validate_trailing(self) -> "DemoExecutionSettings":

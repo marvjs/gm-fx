@@ -17,6 +17,7 @@ from grandmaster_fx.config.backtest import load_backtest_settings
 from grandmaster_fx.config.experiments import load_experiment_settings
 from grandmaster_fx.config.loader import DEFAULT_CONFIG_PATH
 from grandmaster_fx.config.research import load_research_settings
+from grandmaster_fx.config.risk import load_risk_settings
 from grandmaster_fx.config.strategy import load_strategy_settings
 from grandmaster_fx.config.symbols import load_symbol_settings
 from grandmaster_fx.console import console, render_checks
@@ -64,7 +65,7 @@ from grandmaster_fx.strategy_console import render_strategy_decision
 from grandmaster_fx.symbol_console import render_symbol, render_symbols
 
 if TYPE_CHECKING:
-    from grandmaster_fx.execution.worker import DemoWorker
+    from grandmaster_fx.execution.worker import ExecutionWorker
 
 app = typer.Typer(
     name="grandmaster-fx",
@@ -97,10 +98,17 @@ experiments_app = typer.Typer(
     help="Run reproducible multi-strategy experiments.", no_args_is_help=True
 )
 app.add_typer(experiments_app, name="experiments")
+predictions_app = typer.Typer(
+    help="Inspect regime-aware, multi-timeframe strategy predictions.",
+    no_args_is_help=True,
+)
+app.add_typer(predictions_app, name="predictions")
 paper_app = typer.Typer(help="Continuous broker-free paper execution.", no_args_is_help=True)
 app.add_typer(paper_app, name="paper")
 demo_app = typer.Typer(help="Continuous live-demo execution manager.", no_args_is_help=True)
 app.add_typer(demo_app, name="demo")
+live_app = typer.Typer(help="Continuous real-money execution manager.", no_args_is_help=True)
+app.add_typer(live_app, name="live")
 
 EXPERIMENT_STRATEGY_OPTION = typer.Option(None, "--strategy")
 EXPERIMENT_MODE_OPTION = typer.Option(ExperimentMode.QUICK, "--mode")
@@ -213,6 +221,7 @@ def show_config(config: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
 def _with_gateway(action: str) -> None:
     try:
         secrets = Mt5Secrets()
+        settings = load_settings()
         with Mt5Gateway(secrets) as gateway:
             if action == "doctor":
                 from grandmaster_fx.application.mt5_diagnostics import inspect_connection
@@ -220,7 +229,7 @@ def _with_gateway(action: str) -> None:
                 render_report(inspect_connection(gateway))
             elif action == "terminal":
                 render_terminal(gateway.terminal())
-                gateway.account()  # enforce the demo-account invariant
+                gateway.account().verify_execution_safety(settings.execution.allow_live_account)
             else:
                 render_account(gateway.account())
     except GrandmasterFxError as error:
@@ -229,25 +238,25 @@ def _with_gateway(action: str) -> None:
 
 @mt5_app.command("doctor")
 def mt5_doctor() -> None:
-    """Initialize MT5 and validate the terminal and demo account."""
+    """Initialize MT5 and validate the terminal and connection."""
     _with_gateway("doctor")
 
 
 @mt5_app.command("terminal")
 def mt5_terminal() -> None:
-    """Display read-only terminal diagnostics after demo-account validation."""
+    """Display read-only terminal diagnostics."""
     _with_gateway("terminal")
 
 
 @mt5_app.command("account")
 def mt5_account() -> None:
-    """Display a sanitized demo-account summary."""
+    """Display a sanitized account summary."""
     _with_gateway("account")
 
 
 @symbols_app.command("list")
 def symbols_list() -> None:
-    """List currency-only symbols exposed by the connected demo terminal."""
+    """List currency-only symbols exposed by the connected terminal."""
     try:
         settings = load_symbol_settings()
         with Mt5Gateway(Mt5Secrets()) as gateway:
@@ -616,13 +625,16 @@ def paper_stop() -> None:
     console.print("Paper worker stop requested.")
 
 
-def _demo_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, "DemoWorker"]:
+def _create_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, "ExecutionWorker"]:
     from grandmaster_fx.config.demo_execution import load_demo_execution_settings
-    from grandmaster_fx.execution.manager import DemoExecutionManager
-    from grandmaster_fx.execution.worker import DemoWorker
+    from grandmaster_fx.execution.manager import ExecutionManager
+    from grandmaster_fx.execution.risk import RiskManager
+    from grandmaster_fx.execution.worker import ExecutionWorker
 
+    app_settings = load_settings()
     symbol_settings = load_symbol_settings()
     demo_settings = load_demo_execution_settings()
+    risk_settings = load_risk_settings()
     experiments = load_experiment_settings()
 
     manifest = next((item for item in experiments.strategies if item.id == strategy_id), None)
@@ -635,10 +647,17 @@ def _demo_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, "D
 
     gateway = Mt5Gateway(Mt5Secrets())
     gateway.connect()
-    gateway.account()
 
-    manager = DemoExecutionManager(gateway, demo_settings)
-    worker = DemoWorker(
+    # The ExecutionManager decides whether to enforce demo via account checks
+    risk_manager = RiskManager(risk_settings)
+    manager = ExecutionManager(
+        gateway=gateway,
+        settings=demo_settings,
+        risk_manager=risk_manager,
+        allowed_currencies=symbol_settings.symbols.allowed_currencies,
+        allow_live_account=app_settings.execution.allow_live_account,
+    )
+    worker = ExecutionWorker(
         gateway=gateway,
         manager=manager,
         strategy=strategy,
@@ -653,8 +672,10 @@ def _demo_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, "D
 def demo_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
     """Display real demo account and position state."""
     try:
-        gateway, worker = _demo_worker(strategy, timeframe)
+        gateway, worker = _create_worker(strategy, timeframe)
         try:
+            # We strictly enforce demo behavior for demo commands
+            gateway.account().require_demo()
             console.print_json(data=worker.status())
         finally:
             gateway.close()
@@ -666,8 +687,9 @@ def demo_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timef
 def demo_cycle(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
     """Run one demo execution and signal-scanning cycle."""
     try:
-        gateway, worker = _demo_worker(strategy, timeframe)
+        gateway, worker = _create_worker(strategy, timeframe)
         try:
+            gateway.account().require_demo()
             console.print_json(data=worker.cycle())
         finally:
             gateway.close()
@@ -683,8 +705,9 @@ def demo_run(
 ) -> None:
     """Continuously run the demo execution manager."""
     try:
-        gateway, worker = _demo_worker(strategy, timeframe)
+        gateway, worker = _create_worker(strategy, timeframe)
         try:
+            gateway.account().require_demo()
             worker.run(maximum_cycles)
         finally:
             gateway.close()
@@ -699,6 +722,158 @@ def demo_stop() -> None:
     stop_path.parent.mkdir(parents=True, exist_ok=True)
     stop_path.write_text(datetime.now(UTC).isoformat(), encoding="utf-8")
     console.print("Demo worker stop requested.")
+
+
+@live_app.command("status")
+def live_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+    """Display real live account and position state."""
+    try:
+        gateway, worker = _create_worker(strategy, timeframe)
+        try:
+            console.print_json(data=worker.status())
+        finally:
+            gateway.close()
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
+
+
+@live_app.command("cycle")
+def live_cycle(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+    """Run one real-money execution and signal-scanning cycle."""
+    try:
+        gateway, worker = _create_worker(strategy, timeframe)
+        try:
+            console.print_json(data=worker.cycle())
+        finally:
+            gateway.close()
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
+
+
+@live_app.command("run")
+def live_run(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    maximum_cycles: int | None = None,
+) -> None:
+    """Continuously run the real-money execution manager."""
+    try:
+        gateway, worker = _create_worker(strategy, timeframe)
+        try:
+            worker.run(maximum_cycles)
+        finally:
+            gateway.close()
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
+
+
+@live_app.command("stop")
+def live_stop() -> None:
+    """Request a running live worker to stop."""
+    stop_path = Path("data/execution/STOP")
+    stop_path.parent.mkdir(parents=True, exist_ok=True)
+    stop_path.write_text(datetime.now(UTC).isoformat(), encoding="utf-8")
+    console.print("Live worker stop requested.")
+
+
+@predictions_app.command("config")
+def predictions_config() -> None:
+    """Display validated non-secret prediction configuration."""
+    from grandmaster_fx.predictions.config import load_prediction_settings
+
+    try:
+        settings = load_prediction_settings()
+        console.print_json(data=settings.model_dump(mode="json"))
+    except GrandmasterFxError as error:
+        _exit_with_error(error)
+
+
+@predictions_app.command("inspect")
+def predictions_inspect(
+    pair: str,
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 200,
+    strategy: str | None = None,
+) -> None:
+    """Inspect regime, strategy selection, and higher-timeframe confirmation."""
+    from grandmaster_fx.predictions.config import load_prediction_settings
+    from grandmaster_fx.predictions.engine import PredictionEngine
+    from grandmaster_fx.predictions.regime import classify_regime
+
+    try:
+        prediction_settings = load_prediction_settings()
+        symbol_settings = load_symbol_settings()
+        experiments = load_experiment_settings()
+        registry = _load_strategy_registry()
+        manifests = {item.id: item for item in experiments.strategies if item.enabled}
+        with Mt5Gateway(Mt5Secrets()) as gateway:
+            gateway.account()
+            service = MarketDataService(gateway, symbol_settings.symbols.allowed_currencies)
+            name, primary_bars = service.bars(pair, timeframe, count)
+            _higher_name, higher_bars = service.bars(
+                pair,
+                prediction_settings.confirmation.higher_timeframe,
+                count,
+            )
+            metadata = gateway.symbol(name, symbol_settings.symbols.allowed_currencies)
+            regime = classify_regime(primary_bars, prediction_settings.regime)
+            selected_ids = prediction_settings.selection.strategies_for(regime.regime)
+            if strategy is not None:
+                if strategy not in manifests:
+                    message = f"Unknown or disabled strategy: {strategy}"
+                    raise ValueError(message)
+                selected_ids = (strategy,)
+            engine = PredictionEngine(prediction_settings)
+            outcomes: list[dict[str, object]] = []
+            for strategy_id in selected_ids:
+                manifest = manifests.get(strategy_id)
+                if manifest is None:
+                    outcomes.append(
+                        {
+                            "strategy_id": strategy_id,
+                            "available": False,
+                            "accepted": False,
+                            "reason": "manifest_missing_or_disabled",
+                        }
+                    )
+                    continue
+                implementation = registry.create(manifest)
+                decision = implementation.evaluate(name, primary_bars, metadata.point)
+                assessment = engine.assess(
+                    strategy_id,
+                    decision.signal,
+                    primary_bars,
+                    higher_bars,
+                )
+                outcomes.append(
+                    {
+                        "strategy_id": strategy_id,
+                        "available": True,
+                        "primary_signal": decision.signal.value,
+                        "decision_reasons": [item.value for item in decision.reasons],
+                        "strategy_allowed": assessment.strategy_allowed,
+                        "confirmation": assessment.confirmation.confirmed,
+                        "confirmation_reason": assessment.confirmation.reason.value,
+                        "higher_fast_average": assessment.confirmation.fast_average,
+                        "higher_slow_average": assessment.confirmation.slow_average,
+                        "higher_momentum_percent": assessment.confirmation.momentum_percent,
+                        "accepted": assessment.accepted,
+                    }
+                )
+            report = {
+                "symbol": name,
+                "primary_timeframe": timeframe.value,
+                "higher_timeframe": prediction_settings.confirmation.higher_timeframe.value,
+                "regime": regime.regime.value,
+                "trend_strength": regime.trend_strength,
+                "volatility_ratio": regime.volatility_ratio,
+                "efficiency_ratio": regime.efficiency_ratio,
+                "selected_strategies": list(selected_ids),
+                "outcomes": outcomes,
+            }
+            console.print_json(data=report)
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
 
 
 def _exit_with_error(error: GrandmasterFxError | ValueError) -> None:

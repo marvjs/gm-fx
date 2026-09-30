@@ -7,4 +7,4 @@ data_directory = "data"
 
 [execution]
 mode = "observe"
-allow_live_account = false
+allow_live_account = true

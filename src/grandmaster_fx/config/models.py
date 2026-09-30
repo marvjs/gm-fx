@@ -3,9 +3,7 @@
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from grandmaster_fx.exceptions import SafetyViolationError
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Environment(StrEnum):
@@ -21,6 +19,7 @@ class ExecutionMode(StrEnum):
 
     OBSERVE = "observe"
     DEMO = "demo"
+    LIVE = "live"
 
 
 class AppSection(BaseModel):
@@ -42,14 +41,6 @@ class ExecutionSection(BaseModel):
 
     mode: ExecutionMode = ExecutionMode.OBSERVE
     allow_live_account: bool = False
-
-    @model_validator(mode="after")
-    def reject_live_trading(self) -> "ExecutionSection":
-        """Block live trading throughout the staged build."""
-        if self.allow_live_account:
-            message = "Live-account execution is prohibited. Set allow_live_account to false."
-            raise SafetyViolationError(message)
-        return self
 
 
 class AppSettings(BaseModel):

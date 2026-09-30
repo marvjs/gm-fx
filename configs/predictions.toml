@@ -1,0 +1,24 @@
+[regime]
+fast_period = 12
+slow_period = 36
+atr_period = 14
+volatility_lookback = 50
+trend_strength_threshold = 0.35
+compression_ratio_threshold = 0.70
+high_volatility_ratio_threshold = 1.50
+minimum_efficiency_ratio = 0.25
+
+[selection]
+trend = ["momentum_continuation", "session_range_breakout", "donchian_breakout"]
+range = ["channel_mean_reversion", "extreme_mean_reversion", "fibonacci_pullback"]
+compression = ["volatility_expansion", "volatility_expansion_window"]
+high_volatility = ["momentum_continuation", "donchian_breakout"]
+uncertain = []
+
+[confirmation]
+enabled = true
+higher_timeframe = "M15"
+fast_period = 12
+slow_period = 36
+minimum_momentum_percent = 0.01
+require_regime_alignment = true

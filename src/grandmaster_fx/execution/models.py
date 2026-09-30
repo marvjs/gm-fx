@@ -21,6 +21,7 @@ class ExecutionCandidate:
     symbol: str
     signal: Signal
     score: float
+    entry: float
     stop_loss: float
     take_profit: float
 

@@ -87,14 +87,22 @@ class AccountSnapshot:
         except (KeyError, TypeError, ValueError) as error:
             message = f"MT5 returned incomplete account information: {error}"
             raise Mt5DataError(message) from error
-        snapshot.require_demo()
         return snapshot
 
     def require_demo(self) -> None:
-        """Reject every non-demo account before any further application work."""
+        """Explicitly reject every non-demo account (used by demo CLI checks)."""
         if self.trade_mode is not AccountTradeMode.DEMO:
             message = (
                 f"Account {self.login} is not a demo account. "
-                "Grandmaster FX refuses real and contest accounts."
+                "The requested operation is strictly limited to DEMO accounts."
+            )
+            raise SafetyViolationError(message)
+
+    def verify_execution_safety(self, allow_live_account: bool) -> None:  # noqa: FBT001
+        """Reject real accounts unless explicitly authorized in the application config."""
+        if self.trade_mode is not AccountTradeMode.DEMO and not allow_live_account:
+            message = (
+                f"Account {self.login} is a real/contest account. "
+                "Grandmaster FX requires 'allow_live_account = true' in app.toml for live trading."
             )
             raise SafetyViolationError(message)

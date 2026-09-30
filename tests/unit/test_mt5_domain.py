@@ -36,9 +36,21 @@ def test_demo_account_is_accepted() -> None:
     assert account.trade_mode is AccountTradeMode.DEMO
 
 
-def test_real_account_is_rejected() -> None:
+def test_real_account_verification() -> None:
+    real_account = AccountSnapshot.from_mapping({**ACCOUNT, "trade_mode": 2})
+
+    # Should throw if allow_live is false
+    with pytest.raises(SafetyViolationError, match="requires 'allow_live_account = true'"):
+        real_account.verify_execution_safety(allow_live_account=False)
+
+    # Should pass silently if allow_live is true
+    real_account.verify_execution_safety(allow_live_account=True)
+
+
+def test_require_demo_method_rejects_real_account() -> None:
+    real_account = AccountSnapshot.from_mapping({**ACCOUNT, "trade_mode": 2})
     with pytest.raises(SafetyViolationError, match="not a demo"):
-        AccountSnapshot.from_mapping({**ACCOUNT, "trade_mode": 2})
+        real_account.require_demo()
 
 
 def test_incomplete_account_is_rejected() -> None:

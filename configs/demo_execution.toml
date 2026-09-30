@@ -5,16 +5,9 @@ magic = 771100
 comment = "grandmaster-fx-demo"
 deviation_points = 10
 poll_interval_seconds = 1.0
-maximum_open_positions = 3
 cooldown_seconds = 60
 
 [profit]
-small_profit_cash = 1.00
-trailing_activation_cash = 0.75
-trailing_retracement_cash = 0.25
-
-[risk]
-fixed_volume = 0.01
-maximum_spread_points = 20
-maximum_daily_loss_cash = 25.00
-maximum_floating_loss_cash = 15.00
+small_profit_cash = 0.50
+trailing_activation_cash = 0.30
+trailing_retracement_cash = 0.15

@@ -20,9 +20,9 @@ from grandmaster_fx.strategies.models import Signal
 
 def test_execution_candidate_validation() -> None:
     with pytest.raises(ValueError, match="BUY or SELL"):
-        ExecutionCandidate("EURUSDm", Signal.HOLD, 0.5, 0.9, 1.1)
+        ExecutionCandidate("EURUSDm", Signal.HOLD, 0.5, 1.0, 0.9, 1.1)
     with pytest.raises(ValueError, match="between zero and one"):
-        ExecutionCandidate("EURUSDm", Signal.BUY, 2.0, 0.9, 1.1)
+        ExecutionCandidate("EURUSDm", Signal.BUY, 2.0, 1.0, 0.9, 1.1)
 
 
 def test_position_snapshot_mapping() -> None:

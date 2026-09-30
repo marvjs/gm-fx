@@ -1,5 +1,5 @@
-# Reserved for the independent risk engine introduced in a later block.
 [risk]
-risk_per_trade_percent = 0.25
-max_daily_loss_percent = 1.00
-max_open_positions = 1
+risk_per_trade_percent = 1.00
+maximum_daily_loss_percent = 5.00
+maximum_floating_loss_percent = 3.00
+maximum_open_positions = 3

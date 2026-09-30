@@ -1,4 +1,4 @@
-"""Demo worker lifecycle and strategy orchestration tests."""
+"""Execution worker lifecycle and strategy orchestration tests."""
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -8,7 +8,7 @@ from grandmaster_fx.domain.market_data import Bar, Timeframe
 from grandmaster_fx.domain.symbols import ForexIdentity, SymbolSnapshot
 from grandmaster_fx.exceptions import Mt5DataError
 from grandmaster_fx.execution.models import PositionSnapshot
-from grandmaster_fx.execution.worker import DemoWorker
+from grandmaster_fx.execution.worker import ExecutionWorker
 from grandmaster_fx.strategies.models import DecisionReason, Signal, StrategyDecision
 
 
@@ -92,7 +92,7 @@ def test_demo_worker_status_and_cycle(tmp_path: Path) -> None:
     )
     gateway.positions.return_value = [pos]
 
-    worker = DemoWorker(
+    worker = ExecutionWorker(
         gateway=gateway,
         manager=manager,
         strategy=strategy,
@@ -114,7 +114,7 @@ def test_demo_worker_status_and_cycle(tmp_path: Path) -> None:
 
 def test_demo_worker_run_honors_maximum_cycles(tmp_path: Path) -> None:
     gateway, manager, strategy = _mocked_worker_dependencies(tmp_path)
-    worker = DemoWorker(
+    worker = ExecutionWorker(
         gateway=gateway,
         manager=manager,
         strategy=strategy,
@@ -130,7 +130,7 @@ def test_demo_worker_run_honors_maximum_cycles(tmp_path: Path) -> None:
 
 
 def test_demo_worker_request_stop(tmp_path: Path) -> None:
-    worker = DemoWorker(
+    worker = ExecutionWorker(
         gateway=Mock(),
         manager=Mock(),
         strategy=Mock(),
@@ -149,10 +149,9 @@ def test_demo_worker_cycle_ignores_evaluation_exceptions(tmp_path: Path) -> None
     manager.monitor.return_value = ()
     manager.execute.return_value = ()
 
-    # Trigger an exception during the market data lookup sequence inside the loop
     gateway.symbols.side_effect = Mt5DataError("Simulated MT5 exception")
 
-    worker = DemoWorker(
+    worker = ExecutionWorker(
         gateway=gateway,
         manager=manager,
         strategy=strategy,
@@ -161,7 +160,6 @@ def test_demo_worker_cycle_ignores_evaluation_exceptions(tmp_path: Path) -> None
         allowed_currencies=frozenset({"EUR", "USD"}),
     )
 
-    # It should catch the exception locally per-symbol and gracefully continue to execute
     res = worker.cycle()
     assert res["opened"] == ()
     assert res["balance"] == 1000.0

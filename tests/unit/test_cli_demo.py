@@ -9,7 +9,7 @@ from grandmaster_fx.cli import app
 runner = CliRunner()
 
 
-@patch("grandmaster_fx.cli._demo_worker")
+@patch("grandmaster_fx.cli._create_worker")
 def test_demo_status_command(mock_worker: Mock) -> None:
     gateway = Mock()
     worker = Mock()
@@ -22,7 +22,7 @@ def test_demo_status_command(mock_worker: Mock) -> None:
     gateway.close.assert_called_once()
 
 
-@patch("grandmaster_fx.cli._demo_worker")
+@patch("grandmaster_fx.cli._create_worker")
 def test_demo_cycle_command(mock_worker: Mock) -> None:
     gateway = Mock()
     worker = Mock()
@@ -35,7 +35,7 @@ def test_demo_cycle_command(mock_worker: Mock) -> None:
     gateway.close.assert_called_once()
 
 
-@patch("grandmaster_fx.cli._demo_worker")
+@patch("grandmaster_fx.cli._create_worker")
 def test_demo_run_command(mock_worker: Mock) -> None:
     gateway = Mock()
     worker = Mock()

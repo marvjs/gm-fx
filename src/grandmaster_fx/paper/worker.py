@@ -10,10 +10,8 @@ from pathlib import Path
 from statistics import fmean
 from typing import TYPE_CHECKING, Protocol
 
-from grandmaster_fx.domain.market_data import Timeframe
-
 if TYPE_CHECKING:
-    from grandmaster_fx.domain.market_data import Bar, Tick
+    from grandmaster_fx.domain.market_data import Bar, Tick, Timeframe
     from grandmaster_fx.paper.config import PaperWorkerSettings
 from grandmaster_fx.paper.models import PaperPosition, PaperState
 from grandmaster_fx.paper.state import PaperStateStore

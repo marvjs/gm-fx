@@ -1,5 +1,6 @@
-"""Read-only MT5 gateway tests."""
+"""Read-only and execution MT5 gateway tests."""
 
+from collections.abc import Callable
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -201,6 +202,27 @@ def test_symbol_tick_and_bars_are_parsed() -> None:
     api.copy_rates_from_pos.assert_called_once_with("EURUSDm", 1, 1, 1)
 
 
+def test_order_send_rejection_is_parsed_accurately() -> None:
+    from grandmaster_fx.execution.models import ExecutionCandidate
+    from grandmaster_fx.strategies.models import Signal
+
+    api = module()
+    api.symbol_info_tick.return_value = nt(
+        time_msc=1_000, bid=1.1, ask=1.2, last=1.15, volume_real=2.0
+    )
+
+    # Simulate a broker rejection due to invalid volume
+    api.order_check.return_value = nt(retcode=0)
+    api.TRADE_RETCODE_DONE = 10009
+    api.order_send.return_value = nt(retcode=10014, comment="Invalid volume")
+
+    gateway = Mt5Gateway(Mt5Secrets(_env_file=None), api)
+    candidate = ExecutionCandidate("EURUSDm", Signal.BUY, 0.8, 1.2, 0.9, 1.5)
+
+    with pytest.raises(Mt5DataError, match="rejected by broker"):
+        gateway.open_order(candidate, 0.01, 123, "test", 10, dry_run=False)
+
+
 @pytest.mark.parametrize(
     ("method", "setup", "message"),
     [
@@ -223,12 +245,14 @@ def test_symbol_tick_and_bars_are_parsed() -> None:
         ),
     ],
 )
-def test_market_data_gateway_errors(method: str, setup: object, message: str) -> None:
+def test_market_data_gateway_errors(
+    method: str, setup: Callable[[Mock], None], message: str
+) -> None:
     from grandmaster_fx.domain.market_data import Timeframe
 
     api = module()
     api.TIMEFRAME_M1 = 1
-    setup(api)  # type: ignore[operator]
+    setup(api)
     gateway = Mt5Gateway(Mt5Secrets(_env_file=None), api)
     allowed = frozenset({"EUR", "USD"})
 

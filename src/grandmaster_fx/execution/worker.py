@@ -1,4 +1,4 @@
-"""Continuous demo execution worker."""
+"""Continuous universal execution worker."""
 
 import json
 import sys
@@ -8,20 +8,20 @@ from pathlib import Path
 
 from grandmaster_fx.domain.market_data import Timeframe
 from grandmaster_fx.exceptions import Mt5DataError
-from grandmaster_fx.execution.manager import DemoExecutionManager
+from grandmaster_fx.execution.manager import ExecutionManager
 from grandmaster_fx.execution.models import ExecutionCandidate
 from grandmaster_fx.infrastructure.mt5_gateway import Mt5Gateway
 from grandmaster_fx.market_data.service import MarketDataService
 from grandmaster_fx.strategies.protocol import ResearchStrategy
 
 
-class DemoWorker:
-    """Continuously poll Mt5Gateway, evaluate strategies, and manage live demo execution."""
+class ExecutionWorker:
+    """Continuously poll Mt5Gateway, evaluate strategies, and manage live execution."""
 
     def __init__(
         self,
         gateway: Mt5Gateway,
-        manager: DemoExecutionManager,
+        manager: ExecutionManager,
         strategy: ResearchStrategy,
         timeframe: Timeframe,
         symbols: tuple[str, ...],
@@ -74,6 +74,7 @@ class DemoWorker:
                 decision = self.strategy.evaluate(name, bars, metadata.point)
                 if (
                     decision.actionable
+                    and decision.entry is not None
                     and decision.stop_loss is not None
                     and decision.take_profit is not None
                 ):
@@ -83,12 +84,12 @@ class DemoWorker:
                             symbol=name,
                             signal=decision.signal,
                             score=score,
+                            entry=decision.entry,
                             stop_loss=decision.stop_loss,
                             take_profit=decision.take_profit,
                         )
                     )
             except (ValueError, Mt5DataError):
-                # Ignore symbol-specific evaluation failures (e.g. missing bars)
                 continue
         opened = self.manager.execute(candidates)
         return {"closed": closed, "opened": opened, **self.status()}
