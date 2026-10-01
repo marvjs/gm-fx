@@ -1,5 +1,150 @@
 # Changelog
 
+## 1.9.2 - 2026-10-01
+
+### Fixed
+
+- Moved the CLI ResearchStrategy import into its type-checking block.
+- Corrected execution-profile exception style and test regex escaping.
+- Updated prediction-worker fixtures for the expanded account and terminal status contract.
+
+
+## 1.9.1 - 2026-10-01
+
+### Fixed
+
+- Isolated demo and live configuration, magic numbers, stop files, consumed signals, and journals.
+- Enforced matching execution modes and explicit REAL-account checks for live commands.
+- Added execution identity, terminal state, direction visibility, and evaluation errors to worker output.
+- Added focused production-isolation tests.
+
+
+## 1.9.0 - 2026-09-30
+
+### Added
+
+- Integrated symbol selection, directional filters, and the `dashboard` UI command into the real-money `live` CLI application to achieve full parity with the demo execution worker.
+- Updated `render_dashboard` to cleanly designate Demo vs Live modes in the terminal.
+
+## 1.8.16 - 2026-09-30
+
+### Fixed
+
+- Added complete branch coverage for BUY, SELL, and ALL candidate direction filters.
+- Covered indexed and compatibility strategy wrapper paths.
+- Restored the enforced 90 percent project coverage gate.
+
+
+## 1.8.15 - 2026-09-30
+
+### Fixed
+
+- Typed the selected backtest and research strategy through the shared ResearchStrategy protocol.
+- Allowed directional and prediction-wrapped strategies to share the same validated execution variable.
+
+
+## 1.8.14 - 2026-09-30
+
+### Fixed
+
+- Corrected the optional candidate direction type in the execution worker.
+- Moved TradeDirection to the worker type-checking import block.
+- Placed Ruff complexity annotations on the required function definition lines.
+
+
+## 1.8.13 - 2026-09-30
+
+### Added
+
+- Added reusable BUY, SELL, and ALL direction filters.
+- Added optional symbol and direction filters to demo and paper workers.
+- Added direction filters to backtest, holdout, and robustness research commands.
+- Added tests proving blocked directions cannot become candidates.
+
+
+## 1.8.12 - 2026-09-30
+
+### Fixed
+
+- Added the missing prediction research imports to the CLI.
+- Corrected multiline Ruff annotations for dashboard and confirmation functions.
+- Added the missing pytest tmp_path type annotation.
+
+
+## 1.8.11 - 2026-09-30
+
+### Added
+
+- Added strategy selection and prediction toggles to holdout validation.
+- Added prediction-gated walk-forward and transaction-cost sensitivity research.
+- Added prediction rejection diagnostics to research output.
+
+
+## 1.8.10 - 2026-09-30
+
+### Fixed
+
+- Corrected the remaining six Ruff findings using targeted annotations.
+- Added coverage for prediction configuration loader failures.
+- Restored the enforced 90 percent coverage gate.
+
+
+## 1.8.9 - 2026-09-30
+
+### Fixed
+
+- Added focused branch coverage for prediction configuration, regime classification, higher-timeframe confirmation, backtest sizing, and dashboard conversion.
+- Restored the enforced 90 percent project coverage gate without exclusions.
+
+
+## 1.8.8 - 2026-09-30
+
+### Fixed
+
+- Restored strict Ruff compliance for prediction backtesting and dashboard rendering.
+- Corrected historical confirmation timestamp typing and supported timeframe mappings.
+
+
+## 1.8.7 - 2026-09-30
+
+### Added
+
+- Added no-lookahead regime and higher-timeframe prediction gates to backtests.
+- Added strategy selection, prediction toggles, and rejection diagnostics to backtest run.
+
+
+## 1.8.6 - 2026-09-30
+
+### Improved
+
+- Added each strategy's primary decision reason to worker-cycle output.
+- Separated primary strategy reasons from M15 confirmation reasons in the dashboard.
+
+
+## 1.8.5 - 2026-09-30
+
+### Fixed
+
+- Corrected dashboard string generation, numeric typing, and event-list handling.
+- Restored strict Ruff compliance for higher-timeframe confirmation.
+
+
+## 1.8.4 - 2026-09-30
+
+### Added
+
+- Added a full-screen Rich demo dashboard with account, prediction, position, and cycle panels.
+- Preserved JSON run mode for logging and automation.
+
+
+## 1.8.3 - 2026-09-30
+
+### Added
+
+- Wired regime selection and M15 confirmation into demo execution.
+- Added prediction diagnostics and restart-safe consumed-signal state.
+
+
 ## 1.8.2 - 2026-09-30
 
 ### Added

@@ -1,342 +1,499 @@
 # Grandmaster FX
 
-Grandmaster FX is a staged, deterministic forex trading-system project for MetaTrader 5. Block 1 provides the safe and testable project foundation only. It does **not** connect to MetaTrader 5, retrieve market data, produce signals, or place trades.
+Grandmaster FX is a deterministic, configuration-driven forex research and execution system built around MetaTrader 5. It provides one command-line interface for market diagnostics, historical data, indicators, strategies, prediction gating, backtesting, robustness research, experiments, paper trading, demo execution, and isolated live execution.
 
-## Safety status
+> **Important:** Historical and simulated results do not guarantee future performance. Keep live execution in `dry_run = true` until the selected candidate has sufficient demo evidence and all operational checks pass.
 
-- Live-account execution is structurally rejected.
-- The default execution mode is `observe`.
-- No broker connection exists in Block 1.
-- No strategy or order execution exists in Block 1.
-- Profit is not guaranteed. Any later strategy must pass historical and demo validation.
+## Core capabilities
 
-## Requirements
+- MetaTrader 5 terminal and account diagnostics
+- Forex symbol discovery and broker suffix resolution
+- Tick and completed-candle retrieval
+- Technical indicator snapshots
+- Multiple deterministic strategy implementations
+- Chronological, no-lookahead backtesting
+- Transaction-cost-aware trade simulation
+- Market-regime classification
+- Higher-timeframe prediction confirmation
+- BUY, SELL, and ALL direction filters
+- Holdout validation
+- Anchored walk-forward testing
+- Slippage and commission sensitivity testing
+- Strategy experiment comparison
+- Persistent paper trading
+- MT5 demo execution
+- Isolated live execution profile
+- Dynamic Rich terminal dashboards
+- Persistent journals, stop files, and consumed-signal state
+- Ruff, mypy, pytest, and coverage quality gates
 
-- Windows 10 or Windows 11
-- PowerShell 7 or Windows PowerShell 5.1
-- [uv](https://docs.astral.sh/uv/) installed and available on `PATH`
-- Internet access for the initial dependency synchronization
+## Technology
 
-Confirm uv is installed:
+- Python 3.12
+- `uv` for Python and dependency management
+- Typer for the CLI
+- Rich for terminal dashboards and reports
+- Pydantic for strict configuration validation
+- MetaTrader 5 Python integration
+- NumPy-based indicators
+- pytest with a 90% coverage requirement
 
-```powershell
-uv --version
-```
-
-If it is not installed, use the official Windows installer command:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Close and reopen PowerShell after installation if `uv` is not immediately found.
-
-## Extract the archive
-
-The archive is expected at:
+## Project structure
 
 ```text
-$Home\Downloads\grandmaster-fx.zip
+configs/                         Validated TOML configuration
+src/grandmaster_fx/
+  backtesting/                   Chronological simulation engine
+  config/                        Pydantic configuration models and loaders
+  domain/                        Market, account, symbol, and execution models
+  execution/                     Demo/live manager, worker, journal, dashboard
+  experiments/                   Multi-strategy experiment framework
+  indicators/                    Technical indicators
+  infrastructure/                MT5 gateway and logging
+  market_data/                   Symbol resolution and data service
+  paper/                         Persistent simulated trading worker
+  predictions/                   Regime, confirmation, direction, backtest gates
+  research/                      Holdout, robustness, validation, exports
+  strategies/                    Baseline and research strategies
+tests/unit/                      Deterministic unit tests
+data/                            Runtime state, journals, exports, reports
 ```
 
-Create and enter the project directory, then extract the archive contents directly into it:
+## Installation
 
-```powershell
-New-Item -ItemType Directory -Force -Path "$Home\grandmaster-fx" | Out-Null
-Set-Location "$Home\grandmaster-fx"
-Expand-Archive -Path "$Home\Downloads\grandmaster-fx.zip" -DestinationPath . -Force
-```
-
-## Install the project
-
-From `$Home\grandmaster-fx`:
+Install Python 3.12 through `uv`:
 
 ```powershell
 uv python install 3.12
+```
+
+Install locked dependencies:
+
+```powershell
 uv sync --locked
 ```
 
-`uv sync --locked` creates `.venv` and installs the exact versions recorded in `uv.lock`.
-
-## Run the program
+Show the CLI:
 
 ```powershell
 uv run grandmaster-fx --help
+```
+
+Show the installed version:
+
+```powershell
 uv run grandmaster-fx --version
+```
+
+Run health checks:
+
+```powershell
 uv run grandmaster-fx doctor
+```
+
+Display the validated application configuration:
+
+```powershell
 uv run grandmaster-fx show-config
-```
-
-The doctor command should show four passing checks and finish with:
-
-```text
-Foundation is healthy.
-```
-
-## Quality gates
-
-Check formatting without changing files:
-
-```powershell
-uv run ruff format --check .
-```
-
-Lint the project:
-
-```powershell
-uv run ruff check .
-```
-
-Run strict static typing:
-
-```powershell
-uv run mypy
-```
-
-Run tests and enforce the configured 90% coverage floor:
-
-```powershell
-uv run pytest --cov=grandmaster_fx --cov-report=term-missing
-```
-
-Run everything in sequence:
-
-```powershell
-uv run ruff format --check .
-uv run ruff check .
-uv run mypy
-uv run pytest --cov=grandmaster_fx --cov-report=term-missing
-uv run grandmaster-fx doctor
-```
-
-Apply automatic formatting and safe lint fixes during development:
-
-```powershell
-uv run ruff format .
-uv run ruff check --fix .
 ```
 
 ## Configuration
 
-Non-secret settings live in versioned TOML files under `configs/`.
-
-The main application file is:
+Main configuration files include:
 
 ```text
 configs/app.toml
+configs/backtest.toml
+configs/risk.toml
+configs/symbols.toml
+configs/research.toml
+configs/experiments.toml
+configs/predictions.toml
+configs/demo_execution.toml
+configs/live_execution.toml
+configs/strategies/*.toml
 ```
 
-Do not set `allow_live_account` to `true`. The configuration layer rejects it.
+All configuration is strictly validated. Unknown fields and invalid values are rejected.
 
-`.env.example` documents secret names reserved for Block 2. Do not create `.env` yet because Block 1 does not read broker credentials.
+### Application execution mode
 
-## Runtime output
+Use one execution profile at a time.
 
-- Logs: `logs/grandmaster-fx.log`
-- Cached data: `data/cache/`
-- Exports: `data/exports/`
-- Reports: `data/reports/`
+Demo profile:
 
-Runtime contents are ignored by Git, while placeholder files preserve the directories.
-
-## VS Code
-
-Open the project:
-
-```powershell
-code "$Home\grandmaster-fx"
+```toml
+[execution]
+mode = "demo"
+allow_live_account = false
 ```
 
-Select this interpreter when prompted:
+Live profile validation:
+
+```toml
+[execution]
+mode = "live"
+allow_live_account = true
+```
+
+### Isolated execution profiles
+
+Demo and live execution use separate operational resources:
 
 ```text
-$Home\grandmaster-fx\.venv\Scripts\python.exe
+Demo configuration:  configs/demo_execution.toml
+Live configuration:  configs/live_execution.toml
+
+Demo magic:          771100
+Live magic:          771101
+
+Demo stop file:      data/execution/demo/STOP
+Live stop file:      data/execution/live/STOP
+
+Demo consumed state: data/execution/demo/consumed_predictions.json
+Live consumed state: data/execution/live/consumed_predictions.json
+
+Demo journal:        data/execution/demo/journal.jsonl
+Live journal:        data/execution/live/journal.jsonl
 ```
 
-If imports remain red after `uv sync --locked`, open the command palette, run **Python: Select Interpreter**, choose the project `.venv`, and then run **Developer: Reload Window**.
+Keep this setting enabled while validating the live profile without real submissions:
 
-## Troubleshooting
-
-### `uv` is not recognized
-
-Reopen PowerShell. Then verify:
-
-```powershell
-uv --version
+```toml
+dry_run = true
 ```
 
-### Lockfile mismatch
+Setting `dry_run = false` can allow accepted signals to reach the real-account order path when all other authorization, prediction, risk, and account checks pass.
 
-Do not regenerate the lockfile first. Confirm the extracted files are current, then run:
+## Prediction pipeline
 
-```powershell
-uv sync --locked
+The prediction pipeline performs:
+
+1. Primary strategy evaluation on completed candles
+2. Market-regime classification
+3. Strategy eligibility for the detected regime
+4. BUY, SELL, or ALL direction filtering
+5. Higher-timeframe direction and momentum confirmation
+6. Duplicate completed-candle rejection
+7. Risk and execution checks
+
+Supported regimes:
+
+```text
+trend
+range
+compression
+high_volatility
+uncertain
 ```
 
-### Python version mismatch in doctor
+Default higher-timeframe confirmation is configured in `configs/predictions.toml`.
 
-```powershell
-uv python install 3.12
-Remove-Item -Recurse -Force .venv
-uv sync --locked
+## Strategies
+
+Available strategy IDs include:
+
+```text
+baseline_scalper
+session_range_breakout
+momentum_continuation
+donchian_breakout
+channel_mean_reversion
+extreme_mean_reversion
+fibonacci_pullback
+volatility_expansion
+volatility_expansion_window
 ```
 
-### Detailed tests
+List and inspect experiment configuration before selecting a strategy:
 
 ```powershell
-uv run pytest -vv
+uv run grandmaster-fx experiments --help
+uv run grandmaster-fx predictions config
 ```
 
-### Clean local generated state
+## Candidate currently under observation
 
-```powershell
-Remove-Item -Recurse -Force .venv, .pytest_cache, .ruff_cache, .mypy_cache, htmlcov -ErrorAction SilentlyContinue
-Remove-Item -Force .coverage -ErrorAction SilentlyContinue
-uv sync --locked
+The current research candidate is:
+
+```text
+Symbol:           USDJPY
+Primary timeframe: M5
+Strategy:         momentum_continuation
+Direction:        BUY only
+Prediction gates: enabled
 ```
 
-## Block 1 completion criteria
-
-Block 1 is complete when all of these succeed:
+Run it on the demo dashboard:
 
 ```powershell
-uv sync --locked
-uv run ruff format --check .
+uv run grandmaster-fx demo dashboard `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+## Backtesting
+
+Prediction-gated BUY-only backtest:
+
+```powershell
+uv run grandmaster-fx backtest run `
+  USDJPY `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --count 20000 `
+  --direction BUY `
+  --predictions
+```
+
+Raw comparison:
+
+```powershell
+uv run grandmaster-fx backtest run `
+  USDJPY `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --count 20000 `
+  --direction BUY `
+  --no-predictions
+```
+
+The report includes trades, return, drawdown, win rate, profit factor, expectancy, losing streak, and prediction rejection diagnostics.
+
+## Research validation
+
+Chronological holdout validation:
+
+```powershell
+uv run grandmaster-fx research validate `
+  USDJPY `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --count 20000 `
+  --direction BUY `
+  --predictions
+```
+
+Walk-forward and cost sensitivity:
+
+```powershell
+uv run grandmaster-fx research robustness `
+  USDJPY `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --count 20000 `
+  --direction BUY `
+  --predictions
+```
+
+## Paper trading
+
+Paper trading uses persistent simulated positions and does not place MT5 orders.
+
+```powershell
+uv run grandmaster-fx paper status `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+```powershell
+uv run grandmaster-fx paper cycle `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+```powershell
+uv run grandmaster-fx paper run `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Stop the paper worker:
+
+```powershell
+uv run grandmaster-fx paper stop
+```
+
+The paper worker uses its own simulated signal logic. Use the demo worker to observe the exact prediction-gated MT5 candidate.
+
+## Demo execution
+
+Set `configs/app.toml` to demo mode and connect MetaTrader 5 to a demo account.
+
+Status:
+
+```powershell
+uv run grandmaster-fx demo status `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Single cycle:
+
+```powershell
+uv run grandmaster-fx demo cycle `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Continuous JSON worker:
+
+```powershell
+uv run grandmaster-fx demo run `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Dynamic dashboard:
+
+```powershell
+uv run grandmaster-fx demo dashboard `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Stop:
+
+```powershell
+uv run grandmaster-fx demo stop
+```
+
+## Live execution profile
+
+Set `configs/app.toml` to live mode, connect MetaTrader 5 to a real account, and keep `dry_run = true` while validating isolation and output.
+
+Status:
+
+```powershell
+uv run grandmaster-fx live status `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Single cycle:
+
+```powershell
+uv run grandmaster-fx live cycle `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Continuous JSON worker:
+
+```powershell
+uv run grandmaster-fx live run `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Dynamic dashboard:
+
+```powershell
+uv run grandmaster-fx live dashboard `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --symbol USDJPY `
+  --direction BUY
+```
+
+Stop:
+
+```powershell
+uv run grandmaster-fx live stop
+```
+
+Live commands require a real account and the matching live execution profile.
+
+## Dashboard interpretation
+
+A prediction becomes eligible only when the row effectively shows:
+
+```text
+Signal:            BUY or SELL
+Strategy allowed:  YES
+Direction allowed: YES
+HTF confirmation:  YES
+Duplicate:         NO
+Accepted:          ACCEPT
+```
+
+Common reasons:
+
+```text
+outside_session        Current candle is outside the strategy's trading hours.
+breakout_not_confirmed Price has not completed a valid range breakout.
+buy_setup_confirmed    Primary BUY conditions passed.
+sell_setup_confirmed   Primary SELL conditions passed.
+trend_not_aligned      Required trend or price alignment is absent.
+hold_signal            Primary strategy returned HOLD, so HTF confirmation was skipped.
+direction_mismatch     Higher timeframe disagrees with the primary signal.
+momentum_too_weak      Higher-timeframe movement is below the configured threshold.
+strategy_not_allowed   Strategy is not enabled for the detected regime.
+regime_mismatch        Confirmation rules reject the current regime.
+```
+
+## Quality gates
+
+Format:
+
+```powershell
+uv run ruff format .
+```
+
+Lint:
+
+```powershell
 uv run ruff check .
+```
+
+Type check:
+
+```powershell
 uv run mypy
-uv run pytest --cov=grandmaster_fx --cov-report=term-missing
-uv run grandmaster-fx doctor
 ```
 
-## Block 2: MetaTrader 5 read-only connection
-
-Block 2 adds the official Windows-only `MetaTrader5` package and read-only terminal/account diagnostics. No order is constructed or sent. Every account snapshot is validated as `DEMO`; real and contest accounts are rejected.
-
-### Connection option A: reuse the open MT5 terminal session
-
-Open the intended MetaTrader 5 terminal, sign in to the demo account, then run:
+Tests:
 
 ```powershell
-uv run grandmaster-fx mt5 doctor
-uv run grandmaster-fx mt5 terminal
-uv run grandmaster-fx mt5 account
+uv run pytest
 ```
 
-### Connection option B: explicit private credentials
-
-Create the ignored local secrets file:
+Coverage:
 
 ```powershell
-Copy-Item .env.example .env
-notepad .env
+uv run pytest `
+  --cov=grandmaster_fx `
+  --cov-report=term-missing
 ```
 
-Set all three credential values together:
+The project requires at least 90% coverage.
 
-```text
-MT5_LOGIN=your_demo_login
-MT5_PASSWORD=your_demo_trading_password
-MT5_SERVER=your_exact_demo_server
-```
+## Operational notes
 
-When multiple MT5 installations exist, set the machine-specific path as well:
+- Strategies evaluate completed candles, not every polling cycle as a new opportunity.
+- Hundreds of worker cycles may repeatedly evaluate the same M5 candle.
+- Do not tune settings in response to a few minutes of observation.
+- Preserve journals and consumed-signal state when investigating unusual behavior.
+- Use `Ctrl+C` to leave a dashboard.
+- Use the corresponding `stop` command to stop a background worker.
+- Demo and live stop files, journals, consumed signals, and magic numbers are isolated.
 
-```text
-MT5_TERMINAL_PATH=C:\Program Files\MetaTrader 5\terminal64.exe
-```
+## Additional command documentation
 
-Never commit `.env`. The program does not print the password and `show-config` does not load or display MT5 secrets.
-
-### Block 2 commands
-
-```powershell
-uv run grandmaster-fx mt5 --help
-uv run grandmaster-fx mt5 doctor
-uv run grandmaster-fx mt5 terminal
-uv run grandmaster-fx mt5 account
-```
-
-If the terminal is logged into a real account, all MT5 commands stop with exit code 2. Switch the terminal to an Exness demo account before retrying.
-
-
-## Block 3: Forex symbol discovery
-
-```powershell
-uv run grandmaster-fx symbols --help
-uv run grandmaster-fx symbols list
-uv run grandmaster-fx symbols inspect EURUSD
-uv run grandmaster-fx symbols validate EURUSD GBPUSD USDJPY
-```
-
-The discovery layer accepts only configured currency codes, resolves broker prefixes or suffixes from MT5 base/profit currency metadata, and rejects metals, indices, stocks, energy products, and crypto assets. `inspect` can select a resolved currency symbol in Market Watch before refreshing its metadata.
-
-
-## Block 5: Numerical indicators
-
-```powershell
-uv run grandmaster-fx indicators --help
-uv run grandmaster-fx indicators inspect EURUSD --timeframe M1 --count 200
-```
-
-Indicators operate only on completed, validated candles. Warm-up positions are represented by `NaN`; the CLI requests enough history to report fully initialized latest values.
-
-
-## Block 6: Baseline strategy
-
-```powershell
-uv run grandmaster-fx strategy --help
-uv run grandmaster-fx strategy inspect EURUSD --timeframe M1 --count 200
-```
-
-The strategy produces an explainable BUY, SELL, or HOLD decision only. It cannot construct or submit an order.
-
-
-## Block 7: Backtesting
-
-```powershell
-uv run grandmaster-fx backtest run EURUSD --timeframe M1 --count 5000
-```
-
-Historical simulation only. Results do not guarantee future performance.
-
-
-## Block 8: Strategy research and validation
-
-```powershell
-uv run grandmaster-fx research validate EURUSD --timeframe M5 --count 10000
-```
-
-The command evaluates only the chronological holdout partition and exports a trade ledger, diagnostic summary, and validation verdict. It does not submit orders.
-
-
-## Block 8.1: Robustness and ablation research
-
-```powershell
-uv run grandmaster-fx research robustness EURUSD --timeframe M5 --count 10000
-```
-
-The command runs anchored out-of-sample folds, cost sensitivity, and diagnostic ablations. It remains research-only.
-
-
-## Block 9: Strategy experiment framework
-
-```powershell
-uv run grandmaster-fx experiments compare EURUSD --timeframe M5 --count 10000
-```
-
-Experiments remain research-only. The global execution gate is disabled in `configs/experiments.toml`.
-
-
-### Block 9.1 measured eligibility
-
-Strategy comparisons now distinguish full-sample performance from chronological holdout performance and use measured walk-forward and cost-sensitivity evidence for every eligibility reason.
-
-
-## Block 10: Research hypothesis expansion
-
-The experiment registry now compares four fixed-parameter hypotheses: baseline scalper, Donchian breakout, volatility expansion, and extreme mean reversion. Every hypothesis automatically inherits full-sample, chronological holdout, walk-forward, cost-sensitivity, and global execution-gate evaluation.
-
-
-## Block 10.1: Faster research diagnostics
-
-Use `--strategy` to run one hypothesis and `--mode quick` for full-sample plus holdout development runs. Use `--mode full` only for final candidates because it also runs walk-forward and cost sensitivity.
+See [RUNBOOK.md](RUNBOOK.md) for the complete operator command guide.

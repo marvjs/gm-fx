@@ -1,0 +1,13 @@
+[execution]
+enabled = true
+dry_run = true
+magic = 771101
+comment = "grandmaster-fx-live"
+deviation_points = 10
+poll_interval_seconds = 1.0
+cooldown_seconds = 60
+
+[profit]
+small_profit_cash = 0.50
+trailing_activation_cash = 0.30
+trailing_retracement_cash = 0.15

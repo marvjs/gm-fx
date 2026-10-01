@@ -6,5 +6,5 @@ log_directory = "logs"
 data_directory = "data"
 
 [execution]
-mode = "observe"
-allow_live_account = true
+mode = "demo"
+allow_live_account = false

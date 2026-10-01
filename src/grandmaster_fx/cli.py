@@ -1,5 +1,7 @@
 """Grandmaster FX command-line interface."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -14,6 +16,10 @@ from grandmaster_fx.backtesting import run_backtest
 from grandmaster_fx.backtesting.engine import BacktestInput
 from grandmaster_fx.config import Mt5Secrets, load_settings
 from grandmaster_fx.config.backtest import load_backtest_settings
+from grandmaster_fx.config.execution_profile import (
+    ExecutionProfile,
+    load_execution_runtime,
+)
 from grandmaster_fx.config.experiments import load_experiment_settings
 from grandmaster_fx.config.loader import DEFAULT_CONFIG_PATH
 from grandmaster_fx.config.research import load_research_settings
@@ -38,6 +44,14 @@ from grandmaster_fx.infrastructure.mt5_gateway import Mt5Gateway
 from grandmaster_fx.market_data.service import MarketDataService, default_export, export_bars
 from grandmaster_fx.mt5_console import render_account, render_report, render_terminal
 from grandmaster_fx.paper.worker import PaperWorker
+from grandmaster_fx.prediction_backtest_console import render_prediction_backtest
+from grandmaster_fx.predictions.backtest import (
+    PredictionBacktestStrategy,
+    required_higher_bar_count,
+)
+from grandmaster_fx.predictions.config import load_prediction_settings
+from grandmaster_fx.predictions.engine import PredictionEngine
+from grandmaster_fx.predictions.filters import DirectionalStrategy, TradeDirection
 from grandmaster_fx.research.analysis import analyze_result
 from grandmaster_fx.research.exports import export_research
 from grandmaster_fx.research.robustness import ablations, sensitivity_runs, walk_forward
@@ -47,7 +61,7 @@ from grandmaster_fx.research.validation import validate_result
 from grandmaster_fx.research_console import render_research
 from grandmaster_fx.robustness_console import render_robustness
 from grandmaster_fx.strategies import evaluate_baseline
-from grandmaster_fx.strategies.adapters import BaselineStrategyAdapter, load_baseline_adapter
+from grandmaster_fx.strategies.adapters import load_baseline_adapter
 from grandmaster_fx.strategies.candidate_pack import (
     load_channel_mean_reversion,
     load_fibonacci_pullback,
@@ -66,6 +80,7 @@ from grandmaster_fx.symbol_console import render_symbol, render_symbols
 
 if TYPE_CHECKING:
     from grandmaster_fx.execution.worker import ExecutionWorker
+    from grandmaster_fx.strategies.protocol import ResearchStrategy
 
 app = typer.Typer(
     name="grandmaster-fx",
@@ -392,81 +407,189 @@ def strategy_inspect(pair: str, timeframe: Timeframe = Timeframe.M1, count: int 
 
 
 @backtest_app.command("run")
-def backtest_run(pair: str, timeframe: Timeframe = Timeframe.M1, count: int = 5000) -> None:
-    """Run a cost-aware chronological simulation on completed MT5 bars."""
+def backtest_run(
+    pair: str,
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 10000,
+    strategy: str = "baseline_scalper",
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
+    """Run a strategy backtest with optional no-lookahead prediction gates."""
+    from grandmaster_fx.predictions.backtest import (
+        PredictionBacktestStrategy,
+        required_higher_bar_count,
+    )
+
     try:
         symbols = load_symbol_settings()
-        strategy = load_strategy_settings()
         configuration = load_backtest_settings()
+        experiments = load_experiment_settings()
+        manifest = next(
+            (item for item in experiments.strategies if item.id == strategy and item.enabled),
+            None,
+        )
+        if manifest is None:
+            message = f"Strategy '{strategy}' not found or disabled"
+            raise ValueError(message)  # noqa: TRY301
+        implementation = DirectionalStrategy(_load_strategy_registry().create(manifest), direction)
         with Mt5Gateway(Mt5Secrets()) as gateway:
             gateway.account()
             service = MarketDataService(gateway, symbols.symbols.allowed_currencies)
             name, bars = service.bars(pair, timeframe, count)
             metadata = gateway.symbol(name, symbols.symbols.allowed_currencies)
+            filtered = None
+            selected: ResearchStrategy = implementation
+            if predictions:
+                prediction_settings = load_prediction_settings()
+                higher = prediction_settings.confirmation.higher_timeframe
+                higher_count = required_higher_bar_count(count, timeframe, higher)
+                _higher_name, higher_bars = service.bars(pair, higher, higher_count)
+                filtered = PredictionBacktestStrategy(
+                    strategy,
+                    implementation,
+                    PredictionEngine(prediction_settings),
+                    higher_bars,
+                )
+                selected = filtered
             request = BacktestInput(
                 symbol=name,
                 bars=bars,
                 timeframe=timeframe,
                 point=metadata.point,
                 contract_size=metadata.contract_size,
-                strategy=BaselineStrategyAdapter(strategy),
+                strategy=selected,
             )
             render_backtest(run_backtest(request, configuration))
+            if filtered is not None:
+                render_prediction_backtest(filtered.report())
     except (GrandmasterFxError, ValueError) as error:
         _exit_with_error(error)
 
 
 @research_app.command("validate")
-def research_validate(pair: str, timeframe: Timeframe = Timeframe.M5, count: int = 10000) -> None:
-    """Run a chronological holdout validation and export research artifacts."""
+def research_validate(
+    pair: str,
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 20000,
+    strategy: str = "baseline_scalper",
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
+    """Validate one selected strategy on a chronological holdout."""
     try:
         symbols = load_symbol_settings()
-        strategy = load_strategy_settings()
         backtest = load_backtest_settings()
         research = load_research_settings()
+        experiments = load_experiment_settings()
+        manifest = next(
+            (item for item in experiments.strategies if item.id == strategy and item.enabled),
+            None,
+        )
+        if manifest is None:
+            message = f"Strategy '{strategy}' not found or disabled"
+            raise ValueError(message)  # noqa: TRY301
+        implementation = DirectionalStrategy(_load_strategy_registry().create(manifest), direction)
         with Mt5Gateway(Mt5Secrets()) as gateway:
             gateway.account()
             service = MarketDataService(gateway, symbols.symbols.allowed_currencies)
             name, bars = service.bars(pair, timeframe, count)
             metadata = gateway.symbol(name, symbols.symbols.allowed_currencies)
-            _train, test = holdout_split(bars, research.validation.in_sample_fraction)
+            _train, test = holdout_split(
+                bars,
+                research.validation.in_sample_fraction,
+            )
+            filtered = None
+            selected: ResearchStrategy = implementation
+            if predictions:
+                prediction_settings = load_prediction_settings()
+                higher = prediction_settings.confirmation.higher_timeframe
+                higher_count = required_higher_bar_count(count, timeframe, higher)
+                _higher_name, higher_bars = service.bars(pair, higher, higher_count)
+                filtered = PredictionBacktestStrategy(
+                    strategy,
+                    implementation,
+                    PredictionEngine(prediction_settings),
+                    higher_bars,
+                )
+                selected = filtered
             request = BacktestInput(
                 symbol=name,
                 bars=test,
                 timeframe=timeframe,
                 point=metadata.point,
                 contract_size=metadata.contract_size,
-                strategy=BaselineStrategyAdapter(strategy),
+                strategy=selected,
             )
             result = run_backtest(request, backtest)
             analysis = analyze_result(result)
             validation = validate_result(result, research.validation)
             export_research(analysis, validation, research.exports.directory)
             render_research(analysis, validation)
+            if filtered is not None:
+                render_prediction_backtest(filtered.report())
     except (GrandmasterFxError, ValueError) as error:
         _exit_with_error(error)
 
 
 @research_app.command("robustness")
-def research_robustness(pair: str, timeframe: Timeframe = Timeframe.M5, count: int = 10000) -> None:
-    """Run walk-forward, cost-sensitivity, and ablation research."""
+def research_robustness(
+    pair: str,
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 20000,
+    strategy: str = "baseline_scalper",
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
+    """Run walk-forward and cost sensitivity for one selected strategy."""
     try:
         symbols = load_symbol_settings()
-        strategy = load_strategy_settings()
         backtest = load_backtest_settings()
         research = load_research_settings()
+        experiments = load_experiment_settings()
+        manifest = next(
+            (item for item in experiments.strategies if item.id == strategy and item.enabled),
+            None,
+        )
+        if manifest is None:
+            message = f"Strategy '{strategy}' not found or disabled"
+            raise ValueError(message)  # noqa: TRY301
+        implementation = DirectionalStrategy(_load_strategy_registry().create(manifest), direction)
         with Mt5Gateway(Mt5Secrets()) as gateway:
             gateway.account()
             service = MarketDataService(gateway, symbols.symbols.allowed_currencies)
             name, bars = service.bars(pair, timeframe, count)
             metadata = gateway.symbol(name, symbols.symbols.allowed_currencies)
+            filtered = None
+            selected: ResearchStrategy = implementation
+            if predictions:
+                prediction_settings = load_prediction_settings()
+                higher = prediction_settings.confirmation.higher_timeframe
+                higher_count = required_higher_bar_count(count, timeframe, higher)
+                _higher_name, higher_bars = service.bars(pair, higher, higher_count)
+                filtered = PredictionBacktestStrategy(
+                    strategy,
+                    implementation,
+                    PredictionEngine(prediction_settings),
+                    higher_bars,
+                )
+                selected = filtered
             request = BacktestInput(
                 symbol=name,
                 bars=bars,
                 timeframe=timeframe,
                 point=metadata.point,
                 contract_size=metadata.contract_size,
-                strategy=BaselineStrategyAdapter(strategy),
+                strategy=selected,
             )
             folds, stability = walk_forward(request, backtest, research)
             sensitivity = sensitivity_runs(request, backtest, research)
@@ -481,6 +604,8 @@ def research_robustness(pair: str, timeframe: Timeframe = Timeframe.M5, count: i
                 diagnostic,
             )
             render_robustness(name, folds, stability, sensitivity, diagnostic)
+            if filtered is not None:
+                render_prediction_backtest(filtered.report())
     except (GrandmasterFxError, ValueError) as error:
         _exit_with_error(error)
 
@@ -570,7 +695,10 @@ def experiments_compare(
         _exit_with_error(error)
 
 
-def _paper_worker() -> tuple[Mt5Gateway, PaperWorker]:
+def _paper_worker(
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> tuple[Mt5Gateway, PaperWorker]:
     from grandmaster_fx.paper.config import load_paper_worker_settings
 
     settings = load_symbol_settings()
@@ -578,18 +706,24 @@ def _paper_worker() -> tuple[Mt5Gateway, PaperWorker]:
     gateway.connect()
     gateway.account()
     candidates = gateway.symbols(settings.symbols.allowed_currencies)
+    selected_pairs = (symbol,) if symbol is not None else settings.symbols.preferred
     resolved = tuple(
         (chosen.name, chosen.point)
-        for pair in settings.symbols.preferred
+        for pair in selected_pairs
         for chosen in (choose_symbol(candidates, pair),)
     )
-    return gateway, PaperWorker(gateway, resolved, load_paper_worker_settings())
+    return gateway, PaperWorker(
+        gateway, resolved, load_paper_worker_settings(), direction=direction
+    )
 
 
 @paper_app.command("status")
-def paper_status() -> None:
+def paper_status(
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Display restart-safe paper account and position state."""
-    gateway, worker = _paper_worker()
+    gateway, worker = _paper_worker(symbol, direction)
     try:
         console.print_json(data=worker.status())
     finally:
@@ -597,9 +731,12 @@ def paper_status() -> None:
 
 
 @paper_app.command("cycle")
-def paper_cycle() -> None:
+def paper_cycle(
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Run one paper monitoring and signal-scanning cycle."""
-    gateway, worker = _paper_worker()
+    gateway, worker = _paper_worker(symbol, direction)
     try:
         console.print_json(data=worker.cycle())
     finally:
@@ -607,9 +744,13 @@ def paper_cycle() -> None:
 
 
 @paper_app.command("run")
-def paper_run(maximum_cycles: int | None = None) -> None:
+def paper_run(
+    maximum_cycles: int | None = None,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Continuously monitor prices and manage simulated positions."""
-    gateway, worker = _paper_worker()
+    gateway, worker = _paper_worker(symbol, direction)
     try:
         worker.run(maximum_cycles)
     finally:
@@ -625,15 +766,21 @@ def paper_stop() -> None:
     console.print("Paper worker stop requested.")
 
 
-def _create_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, "ExecutionWorker"]:
-    from grandmaster_fx.config.demo_execution import load_demo_execution_settings
+def _create_worker(
+    profile: ExecutionProfile,
+    strategy_id: str,
+    timeframe: Timeframe,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> tuple[Mt5Gateway, ExecutionWorker]:
+    from grandmaster_fx.execution.journal import ExecutionJournal
     from grandmaster_fx.execution.manager import ExecutionManager
     from grandmaster_fx.execution.risk import RiskManager
     from grandmaster_fx.execution.worker import ExecutionWorker
 
     app_settings = load_settings()
     symbol_settings = load_symbol_settings()
-    demo_settings = load_demo_execution_settings()
+    runtime = load_execution_runtime(profile, app_settings)
     risk_settings = load_risk_settings()
     experiments = load_experiment_settings()
 
@@ -652,27 +799,42 @@ def _create_worker(strategy_id: str, timeframe: Timeframe) -> tuple[Mt5Gateway, 
     risk_manager = RiskManager(risk_settings)
     manager = ExecutionManager(
         gateway=gateway,
-        settings=demo_settings,
+        settings=runtime.settings,
         risk_manager=risk_manager,
         allowed_currencies=symbol_settings.symbols.allowed_currencies,
-        allow_live_account=app_settings.execution.allow_live_account,
+        allow_live_account=profile is ExecutionProfile.LIVE,
+        journal=ExecutionJournal(runtime.journal_path),
     )
+
     worker = ExecutionWorker(
         gateway=gateway,
         manager=manager,
         strategy=strategy,
         timeframe=timeframe,
-        symbols=symbol_settings.symbols.preferred,
+        symbols=(symbol,) if symbol is not None else symbol_settings.symbols.preferred,
         allowed_currencies=symbol_settings.symbols.allowed_currencies,
+        prediction_engine=PredictionEngine(load_prediction_settings()),
+        strategy_id=strategy_id,
+        direction=direction,
+        stop_path=runtime.stop_path,
+        consumed_path=runtime.consumed_path,
+        profile=profile.value,
     )
     return gateway, worker
 
 
 @demo_app.command("status")
-def demo_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+def demo_status(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Display real demo account and position state."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.DEMO, strategy, timeframe, symbol, direction
+        )
         try:
             # We strictly enforce demo behavior for demo commands
             gateway.account().require_demo()
@@ -684,10 +846,17 @@ def demo_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timef
 
 
 @demo_app.command("cycle")
-def demo_cycle(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+def demo_cycle(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Run one demo execution and signal-scanning cycle."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.DEMO, strategy, timeframe, symbol, direction
+        )
         try:
             gateway.account().require_demo()
             console.print_json(data=worker.cycle())
@@ -702,10 +871,14 @@ def demo_run(
     strategy: str = "baseline_scalper",
     timeframe: Timeframe = Timeframe.M5,
     maximum_cycles: int | None = None,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
 ) -> None:
     """Continuously run the demo execution manager."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.DEMO, strategy, timeframe, symbol, direction
+        )
         try:
             gateway.account().require_demo()
             worker.run(maximum_cycles)
@@ -715,21 +888,51 @@ def demo_run(
         _exit_with_error(error)
 
 
+@demo_app.command("dashboard")
+def demo_dashboard(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    maximum_cycles: int | None = None,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
+    """Run a continuously refreshing demo execution dashboard."""
+    try:
+        gateway, worker = _create_worker(
+            ExecutionProfile.DEMO, strategy, timeframe, symbol, direction
+        )
+        try:
+            gateway.account().require_demo()
+            worker.run_dashboard(strategy, maximum_cycles, title="Grandmaster FX Demo Dashboard")
+        finally:
+            gateway.close()
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
+
+
 @demo_app.command("stop")
 def demo_stop() -> None:
     """Request a running demo worker to stop."""
-    stop_path = Path("data/execution/STOP")
+    stop_path = Path("data/execution/demo/STOP")
     stop_path.parent.mkdir(parents=True, exist_ok=True)
     stop_path.write_text(datetime.now(UTC).isoformat(), encoding="utf-8")
     console.print("Demo worker stop requested.")
 
 
 @live_app.command("status")
-def live_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+def live_status(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Display real live account and position state."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.LIVE, strategy, timeframe, symbol, direction
+        )
         try:
+            gateway.account().require_real()
             console.print_json(data=worker.status())
         finally:
             gateway.close()
@@ -738,11 +941,19 @@ def live_status(strategy: str = "baseline_scalper", timeframe: Timeframe = Timef
 
 
 @live_app.command("cycle")
-def live_cycle(strategy: str = "baseline_scalper", timeframe: Timeframe = Timeframe.M5) -> None:
+def live_cycle(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
     """Run one real-money execution and signal-scanning cycle."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.LIVE, strategy, timeframe, symbol, direction
+        )
         try:
+            gateway.account().require_real()
             console.print_json(data=worker.cycle())
         finally:
             gateway.close()
@@ -755,12 +966,39 @@ def live_run(
     strategy: str = "baseline_scalper",
     timeframe: Timeframe = Timeframe.M5,
     maximum_cycles: int | None = None,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
 ) -> None:
     """Continuously run the real-money execution manager."""
     try:
-        gateway, worker = _create_worker(strategy, timeframe)
+        gateway, worker = _create_worker(
+            ExecutionProfile.LIVE, strategy, timeframe, symbol, direction
+        )
         try:
+            gateway.account().require_real()
             worker.run(maximum_cycles)
+        finally:
+            gateway.close()
+    except (GrandmasterFxError, ValueError) as error:
+        _exit_with_error(error)
+
+
+@live_app.command("dashboard")
+def live_dashboard(
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    maximum_cycles: int | None = None,
+    symbol: str | None = None,
+    direction: TradeDirection = TradeDirection.ALL,
+) -> None:
+    """Run a continuously refreshing live execution dashboard."""
+    try:
+        gateway, worker = _create_worker(
+            ExecutionProfile.LIVE, strategy, timeframe, symbol, direction
+        )
+        try:
+            gateway.account().require_real()
+            worker.run_dashboard(strategy, maximum_cycles, title="Grandmaster FX Live Dashboard")
         finally:
             gateway.close()
     except (GrandmasterFxError, ValueError) as error:
@@ -770,7 +1008,7 @@ def live_run(
 @live_app.command("stop")
 def live_stop() -> None:
     """Request a running live worker to stop."""
-    stop_path = Path("data/execution/STOP")
+    stop_path = Path("data/execution/live/STOP")
     stop_path.parent.mkdir(parents=True, exist_ok=True)
     stop_path.write_text(datetime.now(UTC).isoformat(), encoding="utf-8")
     console.print("Live worker stop requested.")
@@ -779,7 +1017,6 @@ def live_stop() -> None:
 @predictions_app.command("config")
 def predictions_config() -> None:
     """Display validated non-secret prediction configuration."""
-    from grandmaster_fx.predictions.config import load_prediction_settings
 
     try:
         settings = load_prediction_settings()
@@ -796,8 +1033,6 @@ def predictions_inspect(
     strategy: str | None = None,
 ) -> None:
     """Inspect regime, strategy selection, and higher-timeframe confirmation."""
-    from grandmaster_fx.predictions.config import load_prediction_settings
-    from grandmaster_fx.predictions.engine import PredictionEngine
     from grandmaster_fx.predictions.regime import classify_regime
 
     try:
@@ -821,7 +1056,7 @@ def predictions_inspect(
             if strategy is not None:
                 if strategy not in manifests:
                     message = f"Unknown or disabled strategy: {strategy}"
-                    raise ValueError(message)
+                    raise ValueError(message)  # noqa: TRY301
                 selected_ids = (strategy,)
             engine = PredictionEngine(prediction_settings)
             outcomes: list[dict[str, object]] = []

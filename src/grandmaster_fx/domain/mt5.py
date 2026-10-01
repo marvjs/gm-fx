@@ -98,6 +98,15 @@ class AccountSnapshot:
             )
             raise SafetyViolationError(message)
 
+    def require_real(self) -> None:
+        """Reject demo and contest accounts for live commands."""
+        if self.trade_mode is not AccountTradeMode.REAL:
+            message = (
+                f"Account {self.login} is not a real account. "
+                "The requested operation is strictly limited to REAL accounts."
+            )
+            raise SafetyViolationError(message)
+
     def verify_execution_safety(self, allow_live_account: bool) -> None:  # noqa: FBT001
         """Reject real accounts unless explicitly authorized in the application config."""
         if self.trade_mode is not AccountTradeMode.DEMO and not allow_live_account:

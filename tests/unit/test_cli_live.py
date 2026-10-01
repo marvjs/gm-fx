@@ -47,6 +47,20 @@ def test_live_run_command(mock_worker: Mock) -> None:
     gateway.close.assert_called_once()
 
 
+@patch("grandmaster_fx.cli._create_worker")
+def test_live_dashboard_command(mock_worker: Mock) -> None:
+    gateway = Mock()
+    worker = Mock()
+    mock_worker.return_value = (gateway, worker)
+
+    result = runner.invoke(app, ["live", "dashboard", "--maximum-cycles", "1"])
+    assert result.exit_code == 0
+    worker.run_dashboard.assert_called_once_with(
+        "baseline_scalper", 1, title="Grandmaster FX Live Dashboard"
+    )
+    gateway.close.assert_called_once()
+
+
 def test_live_stop_command() -> None:
     result = runner.invoke(app, ["live", "stop"])
     assert result.exit_code == 0

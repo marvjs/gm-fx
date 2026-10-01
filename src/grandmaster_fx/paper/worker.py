@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from grandmaster_fx.paper.config import PaperWorkerSettings
 from grandmaster_fx.paper.models import PaperPosition, PaperState
 from grandmaster_fx.paper.state import PaperStateStore
+from grandmaster_fx.predictions.filters import TradeDirection
 from grandmaster_fx.strategies.models import Signal
 
 
@@ -31,12 +32,14 @@ class PaperWorker:
         settings: PaperWorkerSettings,
         store: PaperStateStore | None = None,
         stop_path: Path = Path("data/paper/STOP"),
+        direction: TradeDirection = TradeDirection.ALL,
     ) -> None:
         self.market = market
         self.symbols = symbols
         self.settings = settings
         self.store = store or PaperStateStore()
         self.stop_path = stop_path
+        self.direction = direction
 
     def status(self) -> dict[str, object]:
         state = self.store.load(self.settings.paper.initial_balance)
@@ -146,6 +149,8 @@ class PaperWorker:
         elif fast < slow and momentum <= -self.settings.signal.minimum_momentum_percent:
             signal = Signal.SELL
         else:
+            return None
+        if not self.direction.allows(signal):
             return None
         ranges = [item.high - item.low for item in bars[-14:]]
         atr = fmean(ranges)

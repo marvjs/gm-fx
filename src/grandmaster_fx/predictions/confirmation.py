@@ -31,7 +31,7 @@ def _result(
     )
 
 
-def confirm_higher_timeframe(
+def confirm_higher_timeframe(  # noqa: PLR0911
     signal: Signal,
     bars: list[Bar],
     regime: MarketRegime,
