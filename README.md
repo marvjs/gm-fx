@@ -1,242 +1,157 @@
 # Grandmaster FX
 
-Grandmaster FX is a deterministic, configuration-driven forex research and execution system built around MetaTrader 5. It provides one command-line interface for market diagnostics, historical data, indicators, strategies, prediction gating, backtesting, robustness research, experiments, paper trading, demo execution, and isolated live execution.
+Grandmaster FX is a configuration-driven MetaTrader 5 research and execution platform. It provides completed-candle analysis, deterministic strategies, prediction gates, historical backtesting, robustness research, paper simulation, isolated demo and live execution profiles, and a complete pending-order lifecycle.
 
-> **Important:** Historical and simulated results do not guarantee future performance. Keep live execution in `dry_run = true` until the selected candidate has sufficient demo evidence and all operational checks pass.
+> **Risk warning:** Forex trading can cause financial loss. A passing test suite, profitable backtest, demo result, or broker-validated request does not guarantee future performance. Use paper and demo modes first. Keep live execution in dry-run until the account, strategy, risk configuration, broker constraints, and operational procedures have been independently reviewed.
 
-## Core capabilities
-
-- MetaTrader 5 terminal and account diagnostics
-- Forex symbol discovery and broker suffix resolution
-- Tick and completed-candle retrieval
-- Technical indicator snapshots
-- Multiple deterministic strategy implementations
-- Chronological, no-lookahead backtesting
-- Transaction-cost-aware trade simulation
-- Market-regime classification
-- Higher-timeframe prediction confirmation
-- BUY, SELL, and ALL direction filters
-- Holdout validation
-- Anchored walk-forward testing
-- Slippage and commission sensitivity testing
-- Strategy experiment comparison
-- Persistent paper trading
-- MT5 demo execution
-- Isolated live execution profile
-- Dynamic Rich terminal dashboards
-- Persistent journals, stop files, and consumed-signal state
-- Ruff, mypy, pytest, and coverage quality gates
-
-## Technology
-
-- Python 3.12
-- `uv` for Python and dependency management
-- Typer for the CLI
-- Rich for terminal dashboards and reports
-- Pydantic for strict configuration validation
-- MetaTrader 5 Python integration
-- NumPy-based indicators
-- pytest with a 90% coverage requirement
-
-## Project structure
+## Current production baseline
 
 ```text
-configs/                         Validated TOML configuration
-src/grandmaster_fx/
-  backtesting/                   Chronological simulation engine
-  config/                        Pydantic configuration models and loaders
-  domain/                        Market, account, symbol, and execution models
-  execution/                     Demo/live manager, worker, journal, dashboard
-  experiments/                   Multi-strategy experiment framework
-  indicators/                    Technical indicators
-  infrastructure/                MT5 gateway and logging
-  market_data/                   Symbol resolution and data service
-  paper/                         Persistent simulated trading worker
-  predictions/                   Regime, confirmation, direction, backtest gates
-  research/                      Holdout, robustness, validation, exports
-  strategies/                    Baseline and research strategies
-tests/unit/                      Deterministic unit tests
-data/                            Runtime state, journals, exports, reports
+Application:       Grandmaster FX
+Version:           1.13.7
+Python:            3.12.x
+Environment:       uv
+MT5 platform:      Windows
+Automated tests:   294 passing
+Coverage gate:     90% minimum
 ```
 
-## Installation
+## What the system does
 
-Install Python 3.12 through `uv`:
+Grandmaster FX separates trading into explicit gates:
+
+```text
+MT5 and configuration gate
+→ Market-data quality gate
+→ Strategy gate
+→ Direction gate
+→ Optional prediction gate
+→ Risk gate
+→ Execution-profile gate
+→ Pending-order gate when selected
+→ Broker validation and confirmation
+→ Journal and reconciliation
+```
+
+A failure at any gate prevents the next stage. A HOLD result is not an error. It means no acceptable opportunity exists on the last completed candle.
+
+## Main capabilities
+
+### Market data
+
+- Connects to the official MetaTrader 5 Python interface.
+- Discovers broker-specific symbols, including suffixes such as `USDJPYm`.
+- Retrieves ticks and completed UTC candles.
+- Validates ordering, duplication, gaps, and freshness.
+- Exports candles to CSV.
+- Caches exact research requests locally.
+
+### Strategies
+
+Nine deterministic strategies are available:
+
+1. `baseline_scalper`
+2. `channel_mean_reversion`
+3. `donchian_breakout`
+4. `extreme_mean_reversion`
+5. `fibonacci_pullback`
+6. `momentum_continuation`
+7. `session_range_breakout`
+8. `volatility_expansion`
+9. `volatility_expansion_window`
+
+There is no universally “best” strategy. The correct choice depends on symbol, timeframe, regime, direction, costs, and out-of-sample evidence. See [Strategy Guide](docs/04_STRATEGIES.md).
+
+### Prediction gates
+
+Commands that support:
+
+```text
+--predictions / --no-predictions
+```
+
+can either apply or bypass the prediction layer.
+
+- `--predictions` keeps the strategy signal only when regime eligibility, direction confirmation, and momentum confirmation pass.
+- `--no-predictions` uses the raw strategy decision after the ordinary direction filter.
+
+Predictions do not forecast a guaranteed future price. They are deterministic filters that reduce the number of raw strategy signals. See [Prediction Gate](docs/05_PREDICTIONS_GATE.md).
+
+### Research
+
+- Standard chronological backtesting
+- Prediction-gated and raw comparisons
+- Holdout validation
+- Anchored walk-forward analysis
+- Cost-sensitivity analysis
+- Strategy comparison experiments
+- Pending-entry historical simulation
+
+### Execution profiles
+
+- **Paper:** local broker-free state and pending lifecycle
+- **Demo:** isolated MT5 demo account, magic, journal, stop file, and consumed-signal state
+- **Live:** isolated MT5 real account, separate magic and runtime state, dry-run support, broker confirmation, and reconciliation
+
+### Pending orders
+
+- Inspect plans without placing orders
+- Historical pending-entry backtesting
+- Paper pending placement and bar-by-bar reconciliation
+- Demo pending placement, listing, reconciliation, and cancellation
+- Live request validation and authorized placement
+- Post-submission ticket confirmation
+- Persistent identity-to-ticket ownership registry
+- Active order, position, order-history, and deal-history reconciliation
+
+## Documentation map
+
+### Start here
+
+- [Installation](docs/01_INSTALLATION.md)
+- [System Concepts and Gates](docs/02_SYSTEM_GATES.md)
+- [Command Reference](docs/03_COMMAND_REFERENCE.md)
+- [Strategy Guide](docs/04_STRATEGIES.md)
+- [Prediction Gate](docs/05_PREDICTIONS_GATE.md)
+- [Configuration Reference](docs/06_CONFIGURATION.md)
+
+### Research and execution gates
+
+- [Market Data Gate](docs/07_MARKET_DATA_GATE.md)
+- [Backtest and Research Gate](docs/08_RESEARCH_GATE.md)
+- [Pending Order Gate](docs/09_PENDING_GATE.md)
+- [Paper Gate](docs/10_PAPER_GATE.md)
+- [Demo Gate](docs/11_DEMO_GATE.md)
+- [Live Gate](docs/12_LIVE_GATE.md)
+- [Risk Gate](docs/13_RISK_GATE.md)
+- [Observability and Reconciliation](docs/14_OBSERVABILITY.md)
+
+### Operator documents
+
+- [Demo Quick Start](docs/15_DEMO_QUICKSTART.md)
+- [Live Quick Start](docs/16_LIVE_QUICKSTART.md)
+- [Troubleshooting](docs/17_TROUBLESHOOTING.md)
+- [Testing and Release Gate](docs/18_TESTING_RELEASE.md)
+- [Operations Runbook](RUNBOOK.md)
+
+## Installation summary
 
 ```powershell
 uv python install 3.12
-```
-
-Install locked dependencies:
-
-```powershell
 uv sync --locked
-```
-
-Show the CLI:
-
-```powershell
+uv run grandmaster-fx --version
 uv run grandmaster-fx --help
 ```
 
-Show the installed version:
+Open MetaTrader 5 and sign in, then run:
 
 ```powershell
-uv run grandmaster-fx --version
+uv run grandmaster-fx mt5 doctor
+uv run grandmaster-fx mt5 terminal
+uv run grandmaster-fx mt5 account
 ```
 
-Run health checks:
-
-```powershell
-uv run grandmaster-fx doctor
-```
-
-Display the validated application configuration:
-
-```powershell
-uv run grandmaster-fx show-config
-```
-
-## Configuration
-
-Main configuration files include:
-
-```text
-configs/app.toml
-configs/backtest.toml
-configs/risk.toml
-configs/symbols.toml
-configs/research.toml
-configs/experiments.toml
-configs/predictions.toml
-configs/demo_execution.toml
-configs/live_execution.toml
-configs/strategies/*.toml
-```
-
-All configuration is strictly validated. Unknown fields and invalid values are rejected.
-
-### Application execution mode
-
-Use one execution profile at a time.
-
-Demo profile:
-
-```toml
-[execution]
-mode = "demo"
-allow_live_account = false
-```
-
-Live profile validation:
-
-```toml
-[execution]
-mode = "live"
-allow_live_account = true
-```
-
-### Isolated execution profiles
-
-Demo and live execution use separate operational resources:
-
-```text
-Demo configuration:  configs/demo_execution.toml
-Live configuration:  configs/live_execution.toml
-
-Demo magic:          771100
-Live magic:          771101
-
-Demo stop file:      data/execution/demo/STOP
-Live stop file:      data/execution/live/STOP
-
-Demo consumed state: data/execution/demo/consumed_predictions.json
-Live consumed state: data/execution/live/consumed_predictions.json
-
-Demo journal:        data/execution/demo/journal.jsonl
-Live journal:        data/execution/live/journal.jsonl
-```
-
-Keep this setting enabled while validating the live profile without real submissions:
-
-```toml
-dry_run = true
-```
-
-Setting `dry_run = false` can allow accepted signals to reach the real-account order path when all other authorization, prediction, risk, and account checks pass.
-
-## Prediction pipeline
-
-The prediction pipeline performs:
-
-1. Primary strategy evaluation on completed candles
-2. Market-regime classification
-3. Strategy eligibility for the detected regime
-4. BUY, SELL, or ALL direction filtering
-5. Higher-timeframe direction and momentum confirmation
-6. Duplicate completed-candle rejection
-7. Risk and execution checks
-
-Supported regimes:
-
-```text
-trend
-range
-compression
-high_volatility
-uncertain
-```
-
-Default higher-timeframe confirmation is configured in `configs/predictions.toml`.
-
-## Strategies
-
-Available strategy IDs include:
-
-```text
-baseline_scalper
-session_range_breakout
-momentum_continuation
-donchian_breakout
-channel_mean_reversion
-extreme_mean_reversion
-fibonacci_pullback
-volatility_expansion
-volatility_expansion_window
-```
-
-List and inspect experiment configuration before selecting a strategy:
-
-```powershell
-uv run grandmaster-fx experiments --help
-uv run grandmaster-fx predictions config
-```
-
-## Candidate currently under observation
-
-The current research candidate is:
-
-```text
-Symbol:           USDJPY
-Primary timeframe: M5
-Strategy:         momentum_continuation
-Direction:        BUY only
-Prediction gates: enabled
-```
-
-Run it on the demo dashboard:
-
-```powershell
-uv run grandmaster-fx demo dashboard `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-## Backtesting
-
-Prediction-gated BUY-only backtest:
+## Typical research command
 
 ```powershell
 uv run grandmaster-fx backtest run `
@@ -248,7 +163,7 @@ uv run grandmaster-fx backtest run `
   --predictions
 ```
 
-Raw comparison:
+Compare it with the raw strategy:
 
 ```powershell
 uv run grandmaster-fx backtest run `
@@ -260,14 +175,19 @@ uv run grandmaster-fx backtest run `
   --no-predictions
 ```
 
-The report includes trades, return, drawdown, win rate, profit factor, expectancy, losing streak, and prediction rejection diagnostics.
+Do not choose a strategy from one backtest. Compare raw and prediction-gated results, test more than one date range, use holdout and walk-forward evidence, and include realistic costs.
 
-## Research validation
-
-Chronological holdout validation:
+## Typical pending workflow
 
 ```powershell
-uv run grandmaster-fx research validate `
+uv run grandmaster-fx pending inspect `
+  USDJPY `
+  --strategy momentum_continuation `
+  --timeframe M5 `
+  --direction BUY `
+  --predictions
+
+uv run grandmaster-fx pending backtest `
   USDJPY `
   --strategy momentum_continuation `
   --timeframe M5 `
@@ -276,224 +196,54 @@ uv run grandmaster-fx research validate `
   --predictions
 ```
 
-Walk-forward and cost sensitivity:
-
-```powershell
-uv run grandmaster-fx research robustness `
-  USDJPY `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --count 20000 `
-  --direction BUY `
-  --predictions
-```
-
-## Paper trading
-
-Paper trading uses persistent simulated positions and does not place MT5 orders.
-
-```powershell
-uv run grandmaster-fx paper status `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-```powershell
-uv run grandmaster-fx paper cycle `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-```powershell
-uv run grandmaster-fx paper run `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Stop the paper worker:
-
-```powershell
-uv run grandmaster-fx paper stop
-```
-
-The paper worker uses its own simulated signal logic. Use the demo worker to observe the exact prediction-gated MT5 candidate.
-
-## Demo execution
-
-Set `configs/app.toml` to demo mode and connect MetaTrader 5 to a demo account.
-
-Status:
-
-```powershell
-uv run grandmaster-fx demo status `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Single cycle:
-
-```powershell
-uv run grandmaster-fx demo cycle `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Continuous JSON worker:
-
-```powershell
-uv run grandmaster-fx demo run `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Dynamic dashboard:
-
-```powershell
-uv run grandmaster-fx demo dashboard `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Stop:
-
-```powershell
-uv run grandmaster-fx demo stop
-```
-
-## Live execution profile
-
-Set `configs/app.toml` to live mode, connect MetaTrader 5 to a real account, and keep `dry_run = true` while validating isolation and output.
-
-Status:
-
-```powershell
-uv run grandmaster-fx live status `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Single cycle:
-
-```powershell
-uv run grandmaster-fx live cycle `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Continuous JSON worker:
-
-```powershell
-uv run grandmaster-fx live run `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Dynamic dashboard:
-
-```powershell
-uv run grandmaster-fx live dashboard `
-  --strategy momentum_continuation `
-  --timeframe M5 `
-  --symbol USDJPY `
-  --direction BUY
-```
-
-Stop:
-
-```powershell
-uv run grandmaster-fx live stop
-```
-
-Live commands require a real account and the matching live execution profile.
-
-## Dashboard interpretation
-
-A prediction becomes eligible only when the row effectively shows:
+Then move through the gates in order:
 
 ```text
-Signal:            BUY or SELL
-Strategy allowed:  YES
-Direction allowed: YES
-HTF confirmation:  YES
-Duplicate:         NO
-Accepted:          ACCEPT
+Historical research
+→ Paper pending lifecycle
+→ MT5 demo pending lifecycle
+→ Live dry-run validation
+→ Separately authorized live operation
 ```
 
-Common reasons:
-
-```text
-outside_session        Current candle is outside the strategy's trading hours.
-breakout_not_confirmed Price has not completed a valid range breakout.
-buy_setup_confirmed    Primary BUY conditions passed.
-sell_setup_confirmed   Primary SELL conditions passed.
-trend_not_aligned      Required trend or price alignment is absent.
-hold_signal            Primary strategy returned HOLD, so HTF confirmation was skipped.
-direction_mismatch     Higher timeframe disagrees with the primary signal.
-momentum_too_weak      Higher-timeframe movement is below the configured threshold.
-strategy_not_allowed   Strategy is not enabled for the detected regime.
-regime_mismatch        Confirmation rules reject the current regime.
-```
-
-## Quality gates
-
-Format:
+## Quality gate
 
 ```powershell
 uv run ruff format .
-```
-
-Lint:
-
-```powershell
+uv run ruff check --fix .
+uv run ruff format --check .
 uv run ruff check .
-```
-
-Type check:
-
-```powershell
 uv run mypy
-```
-
-Tests:
-
-```powershell
-uv run pytest
-```
-
-Coverage:
-
-```powershell
 uv run pytest `
   --cov=grandmaster_fx `
   --cov-report=term-missing
 ```
 
-The project requires at least 90% coverage.
+Expected baseline:
 
-## Operational notes
+```text
+294 tests passed
+Coverage at or above 90%
+```
 
-- Strategies evaluate completed candles, not every polling cycle as a new opportunity.
-- Hundreds of worker cycles may repeatedly evaluate the same M5 candle.
-- Do not tune settings in response to a few minutes of observation.
-- Preserve journals and consumed-signal state when investigating unusual behavior.
-- Use `Ctrl+C` to leave a dashboard.
-- Use the corresponding `stop` command to stop a background worker.
-- Demo and live stop files, journals, consumed signals, and magic numbers are isolated.
+## Runtime ownership
 
-## Additional command documentation
+```text
+Demo magic: 771100
+Live magic: 771101
+```
 
-See [RUNBOOK.md](RUNBOOK.md) for the complete operator command guide.
+Important runtime files:
+
+```text
+data/paper/state.json
+data/paper/pending_orders.json
+data/execution/demo/journal.jsonl
+data/execution/demo/consumed_predictions.json
+data/execution/live/journal.jsonl
+data/execution/live/consumed_predictions.json
+data/execution/live/pending_orders.json
+logs/grandmaster-fx.log
+```
+
+Do not manually edit live ownership state during an incident. Back it up and reconcile it against MetaTrader 5 first.

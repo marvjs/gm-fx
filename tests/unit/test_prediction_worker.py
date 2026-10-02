@@ -40,6 +40,7 @@ def make_worker(
         trade_api_disabled=False,
     )
     gateway.positions.return_value = []
+    gateway.pending_orders.return_value = []
     gateway.symbol.return_value = SimpleNamespace(point=0.00001)
     manager = Mock()
     manager.settings.execution.magic = 1

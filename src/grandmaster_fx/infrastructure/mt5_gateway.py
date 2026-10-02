@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Self, cast
@@ -15,7 +16,12 @@ from grandmaster_fx.exceptions import (
     Mt5DataError,
     Mt5PackageUnavailableError,
 )
-from grandmaster_fx.execution.models import ExecutionCandidate, PositionSnapshot
+from grandmaster_fx.execution.models import (
+    ExecutionCandidate,
+    PendingOrderSnapshot,
+    PositionSnapshot,
+)
+from grandmaster_fx.pending.models import PendingOrderPlan, PendingOrderType
 from grandmaster_fx.strategies.models import Signal
 
 
@@ -175,6 +181,91 @@ class Mt5Gateway:
             for value in values
             if int(value.magic) == magic
         ]
+
+    def pending_orders(self, magic: int) -> list[PendingOrderSnapshot]:
+        values = self._load_module().orders_get()
+        if values is None:
+            raise Mt5DataError(f"Could not retrieve pending orders. {self._last_error()}")
+        return [
+            PendingOrderSnapshot.from_mapping(item._asdict())
+            for item in values
+            if int(item.magic) == magic
+        ]
+
+    def open_pending_order(  # noqa: PLR0913
+        self,
+        plan: PendingOrderPlan,
+        volume: float,
+        magic: int,
+        comment: str,
+        deviation: int,
+        expiration: datetime,
+        dry_run: bool,  # noqa: FBT001
+    ) -> int | None:
+        module = self._load_module()
+        kinds = {
+            PendingOrderType.BUY_STOP: module.ORDER_TYPE_BUY_STOP,
+            PendingOrderType.SELL_STOP: module.ORDER_TYPE_SELL_STOP,
+            PendingOrderType.BUY_LIMIT: module.ORDER_TYPE_BUY_LIMIT,
+            PendingOrderType.SELL_LIMIT: module.ORDER_TYPE_SELL_LIMIT,
+        }
+        request = {
+            "action": module.TRADE_ACTION_PENDING,
+            "symbol": plan.symbol,
+            "volume": volume,
+            "type": kinds[plan.order_type],
+            "price": plan.trigger_price,
+            "sl": plan.stop_loss,
+            "tp": plan.take_profit,
+            "deviation": deviation,
+            "magic": magic,
+            "comment": comment,
+            "type_time": module.ORDER_TIME_SPECIFIED,
+            "expiration": int(expiration.timestamp()),
+            "type_filling": module.ORDER_FILLING_RETURN,
+        }
+        checked = module.order_check(request)
+        if checked is None or int(checked.retcode) != 0:
+            raise Mt5DataError(f"Pending order check failed. {self._last_error()}")
+        if dry_run:
+            return None
+        result = module.order_send(request)
+        if result is None or int(result.retcode) != int(module.TRADE_RETCODE_DONE):
+            raise Mt5DataError(f"Pending order rejected. {self._last_error()}")
+        return int(result.order)
+
+    def cancel_pending_order(self, ticket: int, magic: int, dry_run: bool) -> bool:  # noqa: FBT001
+        if not any(item.ticket == ticket for item in self.pending_orders(magic)):
+            return False
+        if dry_run:
+            return True
+        module = self._load_module()
+        result = module.order_send({"action": module.TRADE_ACTION_REMOVE, "order": ticket})
+        return result is not None and int(result.retcode) == int(module.TRADE_RETCODE_DONE)
+
+    def history_orders(
+        self,
+        start: datetime,
+        end: datetime,
+        magic: int,
+    ) -> list[dict[str, Any]]:
+        """Return profile-owned broker order-history rows as plain mappings."""
+        values = self._load_module().history_orders_get(start, end)
+        if values is None:
+            raise Mt5DataError(f"Could not retrieve order history. {self._last_error()}")
+        return [item._asdict() for item in values if int(item.magic) == magic]
+
+    def history_deals(
+        self,
+        start: datetime,
+        end: datetime,
+        magic: int,
+    ) -> list[dict[str, Any]]:
+        """Return profile-owned broker deal-history rows as plain mappings."""
+        values = self._load_module().history_deals_get(start, end)
+        if values is None:
+            raise Mt5DataError(f"Could not retrieve deal history. {self._last_error()}")
+        return [item._asdict() for item in values if int(item.magic) == magic]
 
     def open_order(
         self,

@@ -44,6 +44,7 @@ from grandmaster_fx.infrastructure.mt5_gateway import Mt5Gateway
 from grandmaster_fx.market_data.service import MarketDataService, default_export, export_bars
 from grandmaster_fx.mt5_console import render_account, render_report, render_terminal
 from grandmaster_fx.paper.worker import PaperWorker
+from grandmaster_fx.pending.analysis import PendingAnalysisRequest
 from grandmaster_fx.prediction_backtest_console import render_prediction_backtest
 from grandmaster_fx.predictions.backtest import (
     PredictionBacktestStrategy,
@@ -120,6 +121,8 @@ predictions_app = typer.Typer(
 app.add_typer(predictions_app, name="predictions")
 paper_app = typer.Typer(help="Continuous broker-free paper execution.", no_args_is_help=True)
 app.add_typer(paper_app, name="paper")
+pending_app = typer.Typer(help="One-shot pending-order analysis.", no_args_is_help=True)
+app.add_typer(pending_app, name="pending")
 demo_app = typer.Typer(help="Continuous live-demo execution manager.", no_args_is_help=True)
 app.add_typer(demo_app, name="demo")
 live_app = typer.Typer(help="Continuous real-money execution manager.", no_args_is_help=True)
@@ -715,6 +718,380 @@ def _paper_worker(
     return gateway, PaperWorker(
         gateway, resolved, load_paper_worker_settings(), direction=direction
     )
+
+
+def _pending_inputs(
+    pair: str,
+    strategy_id: str,
+    timeframe: Timeframe,
+    count: int,
+    direction: TradeDirection,
+    predictions: bool,
+) -> tuple[Mt5Gateway, PendingAnalysisRequest]:
+
+    symbols = load_symbol_settings()
+    experiments = load_experiment_settings()
+    manifest = next(
+        (item for item in experiments.strategies if item.id == strategy_id and item.enabled),
+        None,
+    )
+    if manifest is None:
+        message = f"Strategy '{strategy_id}' not found or disabled"
+        raise ValueError(message)
+    gateway = Mt5Gateway(Mt5Secrets())
+    gateway.connect()
+    gateway.account()
+    service = MarketDataService(gateway, symbols.symbols.allowed_currencies)
+    name, bars = service.bars(pair, timeframe, count)
+    metadata = gateway.symbol(name, symbols.symbols.allowed_currencies)
+    implementation = _load_strategy_registry().create(manifest)
+    engine = PredictionEngine(load_prediction_settings()) if predictions else None
+    higher_bars = None
+    if engine is not None:
+        higher = engine.settings.confirmation.higher_timeframe
+        higher_count = required_higher_bar_count(count, timeframe, higher)
+        _higher_name, higher_bars = service.bars(pair, higher, higher_count)
+    request = PendingAnalysisRequest(
+        strategy_id=strategy_id,
+        strategy=implementation,
+        symbol=name,
+        timeframe=timeframe,
+        bars=bars,
+        point=metadata.point,
+        direction=direction.value,
+        prediction_engine=engine,
+        higher_bars=higher_bars,
+    )
+    return gateway, request
+
+
+@pending_app.command("inspect")
+def pending_inspect(
+    pair: str,
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 200,
+    direction: TradeDirection = TradeDirection.ALL,
+    predictions: bool = typer.Option(True, "--predictions/--no-predictions"),  # noqa: FBT003
+) -> None:
+    """Analyze once with optional prediction gates and print a pending plan."""
+    from grandmaster_fx.config.pending_orders import load_pending_order_settings
+    from grandmaster_fx.pending.runtime import inspect_pending
+
+    gateway, request = _pending_inputs(pair, strategy, timeframe, count, direction, predictions)
+    try:
+        console.print_json(data=inspect_pending(request, load_pending_order_settings()))
+    finally:
+        gateway.close()
+
+
+@paper_app.command("pending-place")
+def paper_pending_place(
+    pair: str,
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 200,
+    direction: TradeDirection = TradeDirection.ALL,
+    predictions: bool = typer.Option(True, "--predictions/--no-predictions"),  # noqa: FBT003
+) -> None:
+    """Analyze once with optional prediction gates, persist a paper plan, and exit."""
+    from grandmaster_fx.config.pending_orders import load_pending_order_settings
+    from grandmaster_fx.pending.runtime import PendingPlacementRequest, place_paper_pending
+
+    gateway, analysis = _pending_inputs(pair, strategy, timeframe, count, direction, predictions)
+    try:
+        console.print_json(
+            data=place_paper_pending(
+                PendingPlacementRequest(
+                    analysis=analysis,
+                    settings=load_pending_order_settings(),
+                )
+            )
+        )
+    finally:
+        gateway.close()
+
+
+@paper_app.command("pending-list")
+def paper_pending_list() -> None:
+    """List restart-safe paper pending orders."""
+    from grandmaster_fx.pending.runtime import DEFAULT_PAPER_PENDING_PATH, record_payload
+    from grandmaster_fx.pending.service import PendingOrderService
+    from grandmaster_fx.pending.store import PendingOrderStore
+
+    service = PendingOrderService(PendingOrderStore(DEFAULT_PAPER_PENDING_PATH))
+    console.print_json(data={"orders": [record_payload(item) for item in service.list()]})
+
+
+@paper_app.command("pending-reconcile")
+def paper_pending_reconcile() -> None:
+    """Reconcile active paper pending orders against the latest completed candles once."""
+    from grandmaster_fx.pending.runtime import (
+        DEFAULT_PAPER_PENDING_PATH,
+        reconcile_paper_pending,
+    )
+    from grandmaster_fx.pending.service import PendingOrderService
+    from grandmaster_fx.pending.store import PendingOrderStore
+
+    symbol_settings = load_symbol_settings()
+    gateway = Mt5Gateway(Mt5Secrets())
+    gateway.connect()
+    try:
+        gateway.account()
+        service = PendingOrderService(PendingOrderStore(DEFAULT_PAPER_PENDING_PATH))
+        market = MarketDataService(gateway, symbol_settings.symbols.allowed_currencies)
+        completed = {}
+        for record in service.active():
+            _name, bars = market.bars(record.plan.symbol, record.plan.timeframe, 1)
+            completed[record.plan.symbol] = bars[-1]
+        console.print_json(data=reconcile_paper_pending(completed))
+    finally:
+        gateway.close()
+
+
+@pending_app.command("backtest")
+def pending_backtest(
+    pair: str,
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 20000,
+    direction: TradeDirection = TradeDirection.ALL,
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+) -> None:
+    """Run a full pending-entry historical backtest."""
+    from dataclasses import asdict
+
+    from grandmaster_fx.config.pending_orders import load_pending_order_settings
+    from grandmaster_fx.pending.historical import run_pending_backtest
+
+    gateway, analysis = _pending_inputs(pair, strategy, timeframe, count, direction, predictions)
+    try:
+        metadata = gateway.symbol(
+            analysis.symbol, load_symbol_settings().symbols.allowed_currencies
+        )
+        selected: ResearchStrategy = analysis.strategy
+        if analysis.prediction_engine is not None and analysis.higher_bars is not None:
+            selected = PredictionBacktestStrategy(
+                analysis.strategy_id,
+                analysis.strategy,
+                analysis.prediction_engine,
+                analysis.higher_bars,
+            )
+        request = BacktestInput(
+            analysis.symbol,
+            analysis.bars,
+            timeframe,
+            analysis.point,
+            metadata.contract_size,
+            DirectionalStrategy(selected, direction),
+        )
+        outcome = run_pending_backtest(
+            request, load_backtest_settings(), load_pending_order_settings()
+        )
+        render_backtest(outcome.result)
+        report = asdict(outcome.diagnostics) | {
+            "trigger_rate_percent": outcome.diagnostics.trigger_rate_percent,
+            "expiration_rate_percent": outcome.diagnostics.expiration_rate_percent,
+        }
+        console.print_json(data=report)
+    finally:
+        gateway.close()
+
+
+@demo_app.command("pending-place")
+def demo_pending_place(
+    pair: str,
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 200,
+    direction: TradeDirection = TradeDirection.ALL,
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+) -> None:
+    """Analyze once and place one MT5 demo pending order."""
+    from grandmaster_fx.config.pending_orders import load_pending_order_settings
+    from grandmaster_fx.execution.risk import RiskManager
+    from grandmaster_fx.pending.analysis import analyze_pending
+    from grandmaster_fx.pending.demo import DemoPendingPlacement, place_demo_pending
+    from grandmaster_fx.pending.planner import plan_pending_order
+
+    gateway, request = _pending_inputs(pair, strategy, timeframe, count, direction, predictions)
+    try:
+        account = gateway.account()
+        account.require_demo()
+        analysis = analyze_pending(request)
+        if not analysis.accepted:
+            console.print_json(data={"placed": False, "reason": analysis.reason})
+            return
+        plan = plan_pending_order(
+            request.strategy_id,
+            request.symbol,
+            request.timeframe,
+            analysis.filtered,
+            request.bars,
+            load_pending_order_settings(),
+        )
+        if plan is None:
+            console.print_json(data={"placed": False, "reason": "no_actionable_pending_setup"})
+            return
+        runtime = load_execution_runtime(ExecutionProfile.DEMO, load_settings())
+        symbol = gateway.symbol(request.symbol, load_symbol_settings().symbols.allowed_currencies)
+        console.print_json(
+            data=place_demo_pending(
+                gateway,
+                DemoPendingPlacement(
+                    plan,
+                    symbol,
+                    account.balance,
+                    runtime.settings,
+                    RiskManager(load_risk_settings()),
+                ),
+            )
+        )
+    finally:
+        gateway.close()
+
+
+@demo_app.command("pending-list")
+def demo_pending_list() -> None:
+    from grandmaster_fx.pending.demo import list_demo_pending
+
+    runtime = load_execution_runtime(ExecutionProfile.DEMO, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        console.print_json(data=list_demo_pending(gateway, runtime.settings.execution.magic))
+
+
+@demo_app.command("pending-reconcile")
+def demo_pending_reconcile() -> None:
+    from grandmaster_fx.pending.demo import reconcile_demo_pending
+
+    runtime = load_execution_runtime(ExecutionProfile.DEMO, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        console.print_json(data=reconcile_demo_pending(gateway, runtime.settings.execution.magic))
+
+
+@demo_app.command("pending-cancel")
+def demo_pending_cancel(ticket: int) -> None:
+    runtime = load_execution_runtime(ExecutionProfile.DEMO, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        gateway.account().require_demo()
+        console.print_json(
+            data={
+                "ticket": ticket,
+                "canceled": gateway.cancel_pending_order(
+                    ticket, runtime.settings.execution.magic, runtime.settings.execution.dry_run
+                ),
+            }
+        )
+
+
+@live_app.command("pending-place")
+def live_pending_place(
+    pair: str,
+    strategy: str = "baseline_scalper",
+    timeframe: Timeframe = Timeframe.M5,
+    count: int = 200,
+    direction: TradeDirection = TradeDirection.ALL,
+    predictions: bool = typer.Option(
+        True,  # noqa: FBT003
+        "--predictions/--no-predictions",
+    ),
+) -> None:
+    """Build and broker-validate one real-account pending request."""
+    from grandmaster_fx.config.pending_orders import load_pending_order_settings
+    from grandmaster_fx.execution.journal import ExecutionJournal
+    from grandmaster_fx.execution.risk import RiskManager
+    from grandmaster_fx.pending.analysis import analyze_pending
+    from grandmaster_fx.pending.live import LivePendingPlacement, place_live_pending
+    from grandmaster_fx.pending.planner import plan_pending_order
+
+    gateway, request = _pending_inputs(pair, strategy, timeframe, count, direction, predictions)
+    try:
+        account = gateway.account()
+        account.require_real()
+        runtime = load_execution_runtime(ExecutionProfile.LIVE, load_settings())
+        analysis = analyze_pending(request)
+        if not analysis.accepted:
+            console.print_json(data={"placed": False, "reason": analysis.reason})
+            return
+        plan = plan_pending_order(
+            request.strategy_id,
+            request.symbol,
+            request.timeframe,
+            analysis.filtered,
+            request.bars,
+            load_pending_order_settings(),
+        )
+        if plan is None:
+            console.print_json(data={"placed": False, "reason": "no_actionable_pending_setup"})
+            return
+        symbol = gateway.symbol(
+            request.symbol,
+            load_symbol_settings().symbols.allowed_currencies,
+        )
+        console.print_json(
+            data=place_live_pending(
+                gateway,
+                LivePendingPlacement(
+                    plan=plan,
+                    symbol=symbol,
+                    balance=account.balance,
+                    settings=runtime.settings,
+                    risk=RiskManager(load_risk_settings()),
+                    journal=ExecutionJournal(runtime.journal_path),
+                    registry_path=runtime.journal_path.parent / "pending_orders.json",
+                ),
+            )
+        )
+    finally:
+        gateway.close()
+
+
+@live_app.command("pending-list")
+def live_pending_list() -> None:
+    """List live-profile pending orders on the connected REAL account."""
+    from grandmaster_fx.pending.live import list_live_pending
+
+    runtime = load_execution_runtime(ExecutionProfile.LIVE, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        console.print_json(data=list_live_pending(gateway, runtime.settings.execution.magic))
+
+
+@live_app.command("pending-reconcile")
+def live_pending_reconcile() -> None:
+    """Reconcile live-profile pending orders and positions without changing them."""
+    from grandmaster_fx.pending.live import reconcile_live_pending
+
+    runtime = load_execution_runtime(ExecutionProfile.LIVE, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        console.print_json(
+            data=reconcile_live_pending(
+                gateway,
+                runtime.settings.execution.magic,
+                runtime.journal_path.parent / "pending_orders.json",
+            )
+        )
+
+
+@live_app.command("pending-cancel")
+def live_pending_cancel(ticket: int) -> None:
+    """Cancel one live-profile pending order on the connected REAL account."""
+    runtime = load_execution_runtime(ExecutionProfile.LIVE, load_settings())
+    with Mt5Gateway(Mt5Secrets()) as gateway:
+        gateway.account().require_real()
+        console.print_json(
+            data={
+                "ticket": ticket,
+                "canceled": gateway.cancel_pending_order(
+                    ticket, runtime.settings.execution.magic, runtime.settings.execution.dry_run
+                ),
+            }
+        )
 
 
 @paper_app.command("status")

@@ -113,6 +113,41 @@ def render_dashboard(  # noqa: C901, PLR0912, PLR0915
     else:
         prediction_table.add_row("-", "-", "-", "-", "-", "No prediction data", "-", "-", "-", "-")
 
+    pending_table = Table(title="Pending Orders", expand=True)
+    for heading in (
+        "Ticket",
+        "Symbol",
+        "Side",
+        "Type",
+        "Volume",
+        "Trigger",
+        "Stop",
+        "Target",
+        "Expiration",
+    ):
+        pending_table.add_column(heading, no_wrap=True)
+    pending_orders = _items(payload.get("pending_orders"))
+    if pending_orders:
+        for raw in pending_orders:
+            if isinstance(raw, dict):
+                pending_table.add_row(
+                    *[
+                        str(raw.get(key, "-"))
+                        for key in (
+                            "ticket",
+                            "symbol",
+                            "signal",
+                            "order_type",
+                            "volume",
+                            "price",
+                            "stop_loss",
+                            "take_profit",
+                            "expiration",
+                        )
+                    ]
+                )
+    else:
+        pending_table.add_row("-", "-", "-", "-", "-", "-", "-", "-", "No pending orders")
     position_table = Table(title="Open Positions", expand=True)
     for heading in ("Ticket", "Symbol", "Side", "Volume", "Open", "Current", "Profit"):
         position_table.add_column(heading, no_wrap=True)
@@ -156,6 +191,7 @@ def render_dashboard(  # noqa: C901, PLR0912, PLR0915
     return Group(
         Panel(summary, title=title, border_style=border_style),
         prediction_table,
+        pending_table,
         position_table,
         Panel(events, title="Latest Cycle", border_style="blue"),
         Text(

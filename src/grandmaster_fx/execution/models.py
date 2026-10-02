@@ -79,3 +79,36 @@ class ProfitTrail:
         if self.high_water_cash >= activation and self.high_water_cash - profit >= retracement:
             return CloseReason.PROFIT_RETRACEMENT
         return None
+
+
+@dataclass(frozen=True, slots=True)
+class PendingOrderSnapshot:
+    ticket: int
+    symbol: str
+    signal: Signal
+    order_type: str
+    volume: float
+    price: float
+    stop_loss: float
+    take_profit: float
+    magic: int
+    comment: str
+    expiration: datetime | None
+
+    @classmethod
+    def from_mapping(cls, v: Mapping[str, Any]) -> "PendingOrderSnapshot":
+        kind = int(v["type"])
+        expiry = int(v.get("time_expiration", 0))
+        return cls(
+            int(v["ticket"]),
+            str(v["symbol"]),
+            Signal.BUY if kind in {2, 4, 6} else Signal.SELL,
+            str(kind),
+            float(v["volume_current"]),
+            float(v["price_open"]),
+            float(v["sl"]),
+            float(v["tp"]),
+            int(v["magic"]),
+            str(v.get("comment", "")),
+            datetime.fromtimestamp(expiry, UTC) if expiry else None,
+        )

@@ -1,5 +1,241 @@
 # Changelog
 
+## 1.13.7 - 2026-10-01
+
+### Fixed
+
+- Added live dry-run, uncertain submission, missing confirmation, and broker mismatch coverage.
+- Added live pending listing and terminal history-state coverage.
+- Restored the enforced 90 percent project coverage gate.
+
+
+## 1.13.6 - 2026-10-01
+
+### Fixed
+
+- Updated the live placement integration test for mandatory post-submission broker confirmation.
+- Added registry persistence assertions for a confirmed live pending order.
+
+
+## 1.13.5 - 2026-10-01
+
+### Fixed
+
+- Added strict result-payload narrowing for live pending reconciliation tests.
+- Replaced mutation of frozen PendingOrderSnapshot fixtures with dataclasses.replace.
+- Corrected VS Code ty diagnostics for registry assertions and iteration.
+
+
+## 1.13.4 - 2026-10-01
+
+### Fixed
+
+- Moved the historical ResearchStrategy test import into TYPE_CHECKING.
+- Replaced reconciliation SimpleNamespace fixtures with production snapshot dataclasses.
+- Corrected Ruff TC001 and dataclasses.asdict test failures.
+
+
+## 1.13.3 - 2026-10-01
+
+### Fixed
+
+- Replaced SimpleNamespace historical fixtures with BacktestInput and BacktestSettings.
+- Changed the pytest fixture annotation to pytest.MonkeyPatch.
+- Corrected Ruff PT013 and strict ty argument diagnostics.
+
+
+## 1.13.2 - 2026-10-01
+
+### Fixed
+
+- Moved ResearchStrategy into the CLI type-checking imports.
+- Added a named broker-value comparison tolerance and explicit Boolean result.
+- Switched atomic live-registry replacement to pathlib.
+- Corrected live pending and historical test lint findings.
+
+
+## 1.13.1 - 2026-10-01
+
+### Added
+
+- Added atomic live identity-to-ticket ownership persistence.
+- Added post-submission broker confirmation and mismatch reporting.
+- Added read-only order and deal history reconciliation.
+- Added active, triggered, filled, canceled, expired, rejected, externally modified, missing, and unknown registry states.
+- Added focused registry and reconciliation tests.
+
+
+## 1.13.0 - 2026-10-01
+
+### Added
+
+- Unlocked REAL-account pending order execution and broker submission logic.
+- Added explicit terminal API and account-level trade privilege boundary checks.
+- Added `live pending-cancel` command to match demo utility.
+
+## 1.12.0 - 2026-10-01
+
+### Added
+
+- Added REAL-account pending request construction and broker validation.
+- Added live-profile pending listing and read-only reconciliation.
+- Added isolated live pending validation journal events.
+
+
+## 1.11.3 - 2026-10-01
+
+### Fixed
+
+- Added focused historical pending-entry creation, trigger, expiration, and close coverage.
+- Restored the enforced 90 percent project coverage gate without exclusions.
+
+
+## 1.11.2 - 2026-10-01
+
+### Fixed
+
+- Placed FBT003 suppressions on the exact Typer Boolean argument lines.
+- Completed the MT5 failure-path fixture with a valid last_error tuple.
+
+
+## 1.11.1 - 2026-10-01
+
+### Fixed
+
+- Corrected lint annotations for pending CLI and gateway signatures.
+- Moved ExitReason to the pending historical module import block.
+- Updated worker fixtures for the pending-orders gateway contract.
+- Added focused demo and gateway pending-order coverage.
+
+
+## 1.11.0 - 2026-10-01
+
+### Added
+
+- Full pending-entry historical backtesting.
+- MT5 demo pending placement, listing, reconciliation, and cancellation.
+- Pending orders on the execution dashboard.
+
+
+## 1.10.5 - 2026-10-01
+
+### Fixed
+
+- Added the required strategy_id and primary_signal fields to pending prediction test fixtures.
+
+
+## 1.10.4 - 2026-10-01
+
+### Fixed
+
+- Imported PendingAnalysisRequest at runtime because the CLI constructs it.
+- Updated prediction fixtures to use the computed PredictionAssessment.accepted property.
+- Removed the unsupported accepted constructor argument from tests.
+
+
+## 1.10.3 - 2026-10-01
+
+### Fixed
+
+- Normalized PendingAnalysisRequest as a CLI type-only import.
+- Updated prediction confirmation fixtures with the required signal.
+- Migrated pending integration tests to the current analysis and placement request contracts.
+
+
+## 1.10.2 - 2026-10-01
+
+### Fixed
+
+- Added PendingAnalysisRequest to the CLI type-checking imports.
+- Corrected Ruff and mypy resolution of the pending input helper return annotation.
+
+
+## 1.10.1 - 2026-10-01
+
+### Fixed
+
+- Corrected the local PendingAnalysisRequest return annotation.
+- Simplified pending direction membership checks.
+- Replaced positional Boolean analysis arguments with explicit keywords.
+
+
+## 1.10.0 - 2026-10-01
+
+### Added
+
+- Added prediction-gate parity to pending inspection and paper pending placement.
+- Added separate primary and direction-filtered signal reporting.
+- Added explicit regime, strategy eligibility, confirmation, and rejection diagnostics.
+- Added --predictions/--no-predictions to both one-shot pending commands.
+
+
+## 1.9.9 - 2026-10-01
+
+### Fixed
+
+- Added focused coverage for pending cancellation, replacement, and unknown identities.
+- Added BUY LIMIT and SELL LIMIT trigger coverage.
+- Restored the enforced 90 percent coverage gate without exclusions.
+
+
+## 1.9.8 - 2026-10-01
+
+### Fixed
+
+- Replaced the seven-argument paper placement function with a typed request model.
+- Corrected pending CLI market-bar return typing.
+- Updated one-shot pending integration tests for the request model.
+
+
+## 1.9.7 - 2026-10-01
+
+### Added
+
+- Added one-shot pending inspection with explicit strategy, timeframe, symbol, and direction controls.
+- Added restart-safe paper pending placement, listing, reconciliation, and cancellation service support.
+- Added JSON-compatible pending lifecycle output and focused integration tests.
+
+
+## 1.9.6 - 2026-10-01
+
+### Fixed
+
+- Simplified triggered-record validation into one condition.
+- Replaced positional Boolean lifecycle arguments with keyword arguments.
+- Used pathlib for atomic pending-state replacement.
+- Added strict persisted age and trigger-price type validation.
+
+
+## 1.9.5 - 2026-10-01
+
+### Added
+
+- Added deterministic historical pending-order trigger and expiration evaluation.
+- Added atomic restart-safe pending-order JSON persistence.
+- Added profile-independent duplicate reconciliation and paper placement service.
+- Added focused trigger, expiry, restart, and duplicate tests.
+
+
+## 1.9.4 - 2026-10-01
+
+### Fixed
+
+- Replaced the pending planner history magic value with a named constant.
+- Split the compound deterministic-identity assertion.
+- Added focused pending configuration and model-validation coverage.
+- Restored the enforced 90 percent coverage gate.
+
+
+## 1.9.3 - 2026-10-01
+
+### Added
+
+- Added shared broker-neutral pending-order types, plans, and lifecycle states.
+- Added strict pending-order configuration and deterministic plan identities.
+- Added a shared stop-entry planner for accepted BUY and SELL strategy decisions.
+- Added focused planner validation and branch tests.
+
+
 ## 1.9.2 - 2026-10-01
 
 ### Fixed

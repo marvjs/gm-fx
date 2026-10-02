@@ -1,0 +1,8 @@
+[pending]
+enabled = true
+trigger_offset_atr = 0.10
+maximum_wait_bars = 3
+replacement_policy = "retain_existing"
+allow_market = false
+allow_stop = true
+allow_limit = false

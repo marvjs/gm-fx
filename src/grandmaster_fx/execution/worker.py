@@ -79,6 +79,20 @@ class ExecutionWorker:
             "comment": self.manager.settings.execution.comment,
             "stop_path": str(self.stop_path),
             "consumed_path": str(self.consumed_path),
+            "pending_orders": [
+                {
+                    "ticket": x.ticket,
+                    "symbol": x.symbol,
+                    "signal": x.signal.value,
+                    "order_type": x.order_type,
+                    "volume": x.volume,
+                    "price": x.price,
+                    "stop_loss": x.stop_loss,
+                    "take_profit": x.take_profit,
+                    "expiration": x.expiration.isoformat() if x.expiration else None,
+                }
+                for x in self.gateway.pending_orders(self.manager.settings.execution.magic)
+            ],
             "positions": [
                 {
                     "ticket": position.ticket,

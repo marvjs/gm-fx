@@ -24,6 +24,7 @@ def _mocked_worker_dependencies(tmp_path: Path) -> tuple[Mock, Mock, Mock]:
     account.margin = 0.0
     gateway.account.return_value = account
     gateway.positions.return_value = []
+    gateway.pending_orders.return_value = []
 
     gateway.symbols.return_value = [
         SymbolSnapshot(
